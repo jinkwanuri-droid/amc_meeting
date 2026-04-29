@@ -1,0 +1,6 @@
+{
+  "name": "Meeting Room Booking System",
+  "description": "A professional full-stack meeting room reservation system powered by Express and Supabase, featuring monthly and weekly calendar views.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
