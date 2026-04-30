@@ -6,9 +6,10 @@ import {
   addMinutes,
   isBefore,
   isAfter,
-  isEqual
+  isEqual,
+  startOfDay
 } from 'date-fns';
-import { X, Calendar, Clock, User, MessageSquare, Trash2, MapPin, Pencil, Check } from 'lucide-react';
+import { X, Calendar, Clock, User, MessageSquare, Trash2, MapPin, Pencil, Check, ChevronDown } from 'lucide-react';
 import { Booking, Room } from '../types';
 import { ROOMS, BOOKING_COLORS, START_HOUR, END_HOUR } from '../constants';
 import { cn } from '../lib/utils';
@@ -47,8 +48,35 @@ export default function BookingModal({
   const [isConfirmingDelete, setIsConfirmingDelete] = React.useState(false);
   const [isStartTimeOpen, setIsStartTimeOpen] = React.useState(false);
   const [isEndTimeOpen, setIsEndTimeOpen] = React.useState(false);
+  const [isRoomDropdownOpen, setIsRoomDropdownOpen] = React.useState(false);
   const startTimeRef = React.useRef<HTMLDivElement>(null);
   const endTimeRef = React.useRef<HTMLDivElement>(null);
+  const roomDropdownRef = React.useRef<HTMLDivElement>(null);
+  const startTimeListRef = React.useRef<HTMLDivElement>(null);
+  const endTimeListRef = React.useRef<HTMLDivElement>(null);
+
+  // Scroll active time into view
+  React.useEffect(() => {
+    if (isStartTimeOpen && startTimeListRef.current) {
+      setTimeout(() => {
+        const activeItem = startTimeListRef.current?.querySelector('[data-selected="true"]');
+        if (activeItem) {
+          activeItem.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+      }, 0);
+    }
+  }, [isStartTimeOpen]);
+
+  React.useEffect(() => {
+    if (isEndTimeOpen && endTimeListRef.current) {
+      setTimeout(() => {
+        const activeItem = endTimeListRef.current?.querySelector('[data-selected="true"]');
+        if (activeItem) {
+          activeItem.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+      }, 0);
+    }
+  }, [isEndTimeOpen]);
 
   React.useEffect(() => {
     if (initialBooking) {
@@ -70,6 +98,9 @@ export default function BookingModal({
       }
       if (endTimeRef.current && !endTimeRef.current.contains(event.target as Node)) {
         setIsEndTimeOpen(false);
+      }
+      if (roomDropdownRef.current && !roomDropdownRef.current.contains(event.target as Node)) {
+        setIsRoomDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -119,8 +150,9 @@ export default function BookingModal({
     const [startH, startM] = startTime.split(':').map(Number);
     const [endH, endM] = endTime.split(':').map(Number);
     
-    const start = setHours(setMinutes(new Date(selectedDate), startM), startH);
-    const end = setHours(setMinutes(new Date(selectedDate), endM), endH);
+    const baseDate = initialBooking?.startTime ? startOfDay(initialBooking.startTime) : startOfDay(selectedDate);
+    const start = setHours(setMinutes(baseDate, startM), startH);
+    const end = setHours(setMinutes(baseDate, endM), endH);
 
     const selectedRoom = rooms.find(r => r.id === roomId);
     let bookingColor = initialBooking?.color;
@@ -250,24 +282,64 @@ export default function BookingModal({
                 <label className="text-xs font-medium text-gray-500 uppercase tracking-widest pl-1">
                   장소
                 </label>
-                <div className="relative">
-                  <select
+                <div className="relative" ref={roomDropdownRef}>
+                  <button
+                    type="button"
                     disabled={!isEditing}
-                    className="w-full px-4 py-3 bg-[#F9F9F9] border border-[#E5E5E5] rounded-lg focus:outline-none focus:border-black transition-all text-sm font-bold text-[#1A1A1A] appearance-none disabled:opacity-100"
-                    value={roomId}
-                    onChange={(e) => setRoomId(e.target.value)}
-                  >
-                    {!rooms.find(r => r.id === roomId) && (
-                      <option value={roomId} className="text-rose-500">삭제된 회의실</option>
+                    onClick={() => setIsRoomDropdownOpen(!isRoomDropdownOpen)}
+                    className={cn(
+                      "w-full px-4 py-3 bg-[#F9F9F9] border rounded-lg focus:outline-none transition-all text-sm font-bold text-[#1A1A1A] flex items-center justify-between",
+                      isRoomDropdownOpen ? "border-black bg-white" : "border-[#E5E5E5]",
+                      !isEditing && "opacity-100 cursor-not-allowed text-slate-700"
                     )}
-                    {rooms.map(room => (
-                      <option key={room.id} value={room.id}>{room.name}</option>
-                    ))}
-                  </select>
-                  <div className={cn(
-                    "absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full pointer-events-none transition-all",
-                    rooms.find(r => r.id === roomId)?.color || 'bg-slate-300'
-                  )} />
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={cn(
+                        "w-3 h-3 rounded-full shrink-0 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)]",
+                        rooms.find(r => r.id === roomId)?.color || 'bg-slate-300'
+                      )} />
+                      <span className="truncate">
+                        {rooms.find(r => r.id === roomId)?.name || '삭제된 회의실'}
+                      </span>
+                    </div>
+                    {isEditing && (
+                      <ChevronDown size={16} className={cn(
+                        "text-gray-400 transition-transform",
+                        isRoomDropdownOpen && "rotate-180"
+                      )} />
+                    )}
+                  </button>
+
+                  <AnimatePresence>
+                    {isRoomDropdownOpen && isEditing && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute z-50 w-full mt-2 bg-white border border-[#E5E5E5] rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden py-1 max-h-60 overflow-y-auto"
+                      >
+                        {rooms.map(room => (
+                          <button
+                            key={room.id}
+                            type="button"
+                            onClick={() => {
+                              setRoomId(room.id);
+                              setIsRoomDropdownOpen(false);
+                            }}
+                            className={cn(
+                              "w-full px-4 py-2.5 text-left text-[13px] font-bold hover:bg-gray-50 flex items-center gap-3 transition-colors",
+                              roomId === room.id ? "bg-gray-50 text-black" : "text-gray-600"
+                            )}
+                          >
+                            <div className={cn("w-3 h-3 rounded-full shrink-0 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)]", room.color)} />
+                            <span>{room.name}</span>
+                            {roomId === room.id && <Check size={14} className="ml-auto text-black" />}
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
               <div className="space-y-1.5">
@@ -307,6 +379,7 @@ export default function BookingModal({
                   <AnimatePresence>
                     {isStartTimeOpen && isEditing && (
                       <motion.div
+                        ref={startTimeListRef}
                         initial={{ opacity: 0, y: -5 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -5 }}
@@ -316,6 +389,7 @@ export default function BookingModal({
                           <button
                             key={`start-${time}`}
                             type="button"
+                            data-selected={startTime === time}
                             onClick={() => {
                               setStartTime(time);
                               setIsStartTimeOpen(false);
@@ -349,6 +423,7 @@ export default function BookingModal({
                   <AnimatePresence>
                     {isEndTimeOpen && isEditing && (
                       <motion.div
+                        ref={endTimeListRef}
                         initial={{ opacity: 0, y: -5 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -5 }}
@@ -358,6 +433,7 @@ export default function BookingModal({
                           <button
                             key={`end-${time}`}
                             type="button"
+                            data-selected={endTime === time}
                             onClick={() => {
                               setEndTime(time);
                               setIsEndTimeOpen(false);

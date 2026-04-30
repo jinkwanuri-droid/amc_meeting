@@ -139,19 +139,26 @@ export default function App() {
   const handleSubmitBooking = async (bookingData: Omit<Booking, 'id'> & { id?: string }) => {
     // 중복 체크
     const hasOverlap = bookings.some(b => {
-      if (bookingData.id && b.id === bookingData.id) return false;
-      if (b.roomId !== bookingData.roomId) return false;
+      // 본인이면 제외
+      if (bookingData.id && String(b.id) === String(bookingData.id)) return false;
+      
+      // 같은 회의실인지 체크 (데이터 타입 다를 수 있으므로 문자열 변환후 비교)
+      const isSameRoom = String(b.roomId) === String(bookingData.roomId);
+      if (!isSameRoom) return false;
       
       const bStart = b.startTime.getTime();
       const bEnd = b.endTime.getTime();
       const newDataStart = bookingData.startTime.getTime();
       const newDataEnd = bookingData.endTime.getTime();
 
-      return newDataStart < bEnd && newDataEnd > bStart;
+      // 시간 중첩 여부 (밀리초 단위 비교)
+      const overlaps = newDataStart < bEnd && newDataEnd > bStart;
+      
+      return overlaps;
     });
 
     if (hasOverlap) {
-      alert("이미 해당 시간에 예약이 있습니다.");
+      alert("기존 예약이 있어 저장할 수 없습니다.");
       return;
     }
 
@@ -293,6 +300,7 @@ export default function App() {
         onAddBooking={handleAddBooking}
         onEditBooking={handleEditBooking}
         onNavigate={setSelectedDate}
+        onUpdateBooking={handleSubmitBooking}
       />
 
       <BookingModal

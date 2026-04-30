@@ -89,7 +89,7 @@ export default function Sidebar({ selectedDate, onDateSelect, onOpenSettings, ho
           </div>
         </div>
 
-        <div className="grid grid-cols-7 text-center mb-4">
+        <div className="grid grid-cols-7 text-center mb-3">
           {daysOfWeek.map((day) => (
             <div key={day} className="text-[10px] font-bold text-slate-400 tracking-widest">
               {day}
@@ -97,7 +97,7 @@ export default function Sidebar({ selectedDate, onDateSelect, onOpenSettings, ho
           ))}
         </div>
 
-        <div className="grid grid-cols-7 gap-y-3">
+        <div className="grid grid-cols-7 gap-y-1.5">
           {calendarDays.map((day) => {
             const isSelected = isSameDay(day, selectedDate);
             const isCurrentMonth = isSameMonth(day, monthStart);

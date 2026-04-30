@@ -9,7 +9,9 @@ import {
   addMinutes,
   differenceInMinutes,
   startOfDay,
-  isWithinInterval
+  isWithinInterval,
+  isBefore,
+  isAfter
 } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Plus, Users, Clock } from 'lucide-react';
@@ -28,6 +30,7 @@ interface WeeklyViewProps {
   onAddBooking: (date: Date, hour: number, minutes: number, roomId?: string) => void;
   onEditBooking: (booking: Booking) => void;
   onNavigate: (date: Date) => void;
+  onUpdateBooking?: (booking: Booking) => void;
 }
 
 export default function WeeklyView({ 
@@ -39,9 +42,123 @@ export default function WeeklyView({
   onViewModeChange,
   onAddBooking, 
   onEditBooking,
-  onNavigate 
+  onNavigate,
+  onUpdateBooking
 }: WeeklyViewProps) {
   const [now, setNow] = React.useState(new Date());
+  
+  // Drag & Resize state
+  const [dragState, setDragState] = React.useState<{
+    id: string;
+    type: 'move' | 'resize-top' | 'resize-bottom';
+    startY: number;
+    startX: number;
+    originalStart: Date;
+    originalEnd: Date;
+    originalRoomId: string;
+    originalDate: Date;
+    currentStart: Date;
+    currentEnd: Date;
+    currentRoomId: string;
+    currentDate: Date;
+  } | null>(null);
+
+  React.useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!dragState) return;
+
+      const deltaY = e.clientY - dragState.startY;
+      const deltaX = e.clientX - dragState.startX;
+      
+      // Calculate time delta (80px = 60mins, 40px = 30mins, 20px = 15mins)
+      // We snap to 30 min intervals (40px)
+      const snapMinutes = 30;
+      const pixelsPerMinute = 80 / 60;
+      const stepPixels = snapMinutes * pixelsPerMinute;
+      
+      const snappedDeltaY = Math.round(deltaY / stepPixels) * snapMinutes;
+      
+      if (dragState.type === 'move') {
+        const newStart = addMinutes(dragState.originalStart, snappedDeltaY);
+        const newEnd = addMinutes(dragState.originalEnd, snappedDeltaY);
+        
+        // Handle column change (X delta)
+        // Find the column under cursor
+        const gridElement = document.getElementById('calendar-grid');
+        if (gridElement) {
+          const rect = gridElement.getBoundingClientRect();
+          const gridWidth = rect.width - 80; // subtracting time column
+          const colWidth = gridWidth / (viewMode === 'week' ? 5 : rooms.length);
+          const colIndex = Math.floor((e.clientX - rect.left - 80) / colWidth);
+          
+          if (colIndex >= 0 && colIndex < (viewMode === 'week' ? 5 : rooms.length)) {
+            if (viewMode === 'week') {
+              const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
+              const newDate = addDays(weekStart, colIndex);
+              
+              // Maintain hours/mins but change day
+              const dStart = setMinutes(setHours(newDate, newStart.getHours()), newStart.getMinutes());
+              const dEnd = setMinutes(setHours(newDate, newEnd.getHours()), newEnd.getMinutes());
+              
+              setDragState(prev => prev ? { ...prev, currentStart: dStart, currentEnd: dEnd, currentDate: newDate } : null);
+            } else {
+              const newRoom = rooms[colIndex];
+              setDragState(prev => prev ? { ...prev, currentStart: newStart, currentEnd: newEnd, currentRoomId: newRoom.id } : null);
+            }
+          } else {
+            setDragState(prev => prev ? { ...prev, currentStart: newStart, currentEnd: newEnd } : null);
+          }
+        }
+      } else if (dragState.type === 'resize-top') {
+        const newStart = addMinutes(dragState.originalStart, snappedDeltaY);
+        if (isBefore(newStart, dragState.originalEnd)) {
+          setDragState(prev => prev ? { ...prev, currentStart: newStart } : null);
+        }
+      } else if (dragState.type === 'resize-bottom') {
+        const newEnd = addMinutes(dragState.originalEnd, snappedDeltaY);
+        if (isAfter(newEnd, dragState.originalStart)) {
+          setDragState(prev => prev ? { ...prev, currentEnd: newEnd } : null);
+        }
+      }
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (dragState && onUpdateBooking) {
+        // Only update if there was actual movement or resizing
+        const hasMoved = dragState.type === 'move' && (
+          dragState.currentStart.getTime() !== dragState.originalStart.getTime() ||
+          dragState.currentEnd.getTime() !== dragState.originalEnd.getTime() ||
+          dragState.currentRoomId !== dragState.originalRoomId
+        );
+        const hasResized = (dragState.type === 'resize-top' || dragState.type === 'resize-bottom') && (
+          dragState.currentStart.getTime() !== dragState.originalStart.getTime() ||
+          dragState.currentEnd.getTime() !== dragState.originalEnd.getTime()
+        );
+
+        if (hasMoved || hasResized) {
+          const booking = bookings.find(b => b.id === dragState.id);
+          if (booking) {
+            onUpdateBooking({
+              ...booking,
+              startTime: dragState.currentStart,
+              endTime: dragState.currentEnd,
+              roomId: dragState.currentRoomId
+            });
+          }
+        }
+      }
+      setDragState(null);
+    };
+
+    if (dragState) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [dragState, onUpdateBooking, bookings, rooms, viewMode, selectedDate]);
 
   React.useEffect(() => {
     const timer = setInterval(() => {
@@ -82,14 +199,49 @@ export default function WeeklyView({
       if (!added) groups.push([booking]);
     });
 
-    const layouts = new Map<string, { width: string; left: string; groupSize: number }>();
+    const layouts = new Map<string, { width: string; left: string; index: number; groupSize: number }>();
+    
+    // Identify active rooms for this column (day) to create consistent lanes
+    const columnRoomIds = Array.from(new Set(columnBookings.map(b => b.roomId)))
+      .sort((a, b) => {
+        const idxA = rooms.findIndex(r => r.id === a);
+        const idxB = rooms.findIndex(r => r.id === b);
+        return idxA - idxB;
+      });
+    const activeRoomsCount = columnRoomIds.length;
+
     groups.forEach(group => {
-      group.forEach((booking, idx) => {
-        layouts.set(booking.id, {
-          width: `calc(${100 / group.length}% - 8px)`,
-          left: `calc(${(100 / group.length) * idx}% + 4px)`,
-          groupSize: group.length
-        });
+      const n = group.length;
+      
+      const roomOrderGroup = [...group].sort((a, b) => {
+        const roomAIdx = rooms.findIndex(r => r.id === a.roomId);
+        const roomBIdx = rooms.findIndex(r => r.id === b.roomId);
+        return roomAIdx - roomBIdx;
+      });
+
+      roomOrderGroup.forEach((booking, idx) => {
+        if (n >= 6) {
+          // Side-by-side for 6+ items
+          // Use global active rooms for the day to ensure constant alignment
+          const roomIdxInDay = columnRoomIds.indexOf(booking.roomId);
+          const laneWidth = 100 / activeRoomsCount;
+          
+          layouts.set(booking.id, {
+            width: `calc(${laneWidth}% - 4px)`,
+            left: `calc(${laneWidth * roomIdxInDay}% + 2px)`,
+            index: roomIdxInDay,
+            groupSize: n
+          });
+        } else {
+          // Stacked for 2-5 items
+          const offset = n > 1 ? 40 : 0;
+          layouts.set(booking.id, {
+            width: n > 1 ? `calc(100% - ${(n - 1) * offset}px - 10px)` : `calc(100% - 10px)`,
+            left: `calc(${idx * offset}px + 5px)`,
+            index: idx,
+            groupSize: n
+          });
+        }
       });
     });
     return layouts;
@@ -100,7 +252,7 @@ export default function WeeklyView({
       {/* Header */}
       <header className="h-16 bg-white border-b border-[#E5E5E5] px-8 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-8">
-          <h2 className="text-lg font-bold text-[#1A1A1A] tracking-tight">
+          <h2 className="text-lg font-bold text-[#1A1A1A] tracking-tight w-[200px]">
             {viewMode === 'week' ? (
               <>{format(weekStart, 'yyyy.MM.dd')} - {format(addDays(weekStart, 4), 'MM.dd')}</>
             ) : (
@@ -161,7 +313,7 @@ export default function WeeklyView({
       </header>
 
       {/* Grid */}
-      <div className="flex-1 overflow-auto bg-[#FDFDFD] relative">
+      <div id="calendar-grid" className="flex-1 overflow-auto bg-[#FDFDFD] relative">
         <div className="min-w-[1000px] flex flex-col h-full">
           {/* Headers */}
           <div 
@@ -293,11 +445,14 @@ export default function WeeklyView({
             >
                <div className="pointer-events-none" /> {/* Spacer for time column */}
                {columns.map((_, colIdx) => {
+                 const col = columns[colIdx];
+                 const isDayCol = col instanceof Date;
+
                  const columnBookings = bookings.filter(booking => {
                    if (viewMode === 'week') {
-                     return isSameDay(booking.startTime, columns[colIdx] as Date);
+                     return isSameDay(booking.startTime, col as Date);
                    } else {
-                     return isSameDay(booking.startTime, selectedDate) && booking.roomId === (columns[colIdx] as Room).id;
+                     return isSameDay(booking.startTime, selectedDate) && booking.roomId === (col as Room).id;
                    }
                  });
                  const layouts = getBookingLayout(columnBookings);
@@ -305,10 +460,23 @@ export default function WeeklyView({
                  return (
                    <div key={colIdx} className="relative h-full pointer-events-none">
                       {columnBookings.map((booking) => {
-                          const startMins = booking.startTime.getHours() * 60 + booking.startTime.getMinutes();
+                          const isDragging = dragState?.id === booking.id;
+                          const displayStart = isDragging ? dragState.currentStart : booking.startTime;
+                          const displayEnd = isDragging ? dragState.currentEnd : booking.endTime;
+                          const displayRoomId = isDragging ? dragState.currentRoomId : booking.roomId;
+                          const displayDate = isDragging ? dragState.currentDate : (isDayCol ? col as Date : selectedDate);
+
+                          // Only show the booking in its current/target column
+                          if (viewMode === 'week') {
+                            if (!isSameDay(displayStart, col as Date)) return null;
+                          } else {
+                            if (displayRoomId !== (col as Room).id) return null;
+                          }
+
+                          const startMins = displayStart.getHours() * 60 + displayStart.getMinutes();
                           const gridStartMins = START_HOUR * 60;
                           const top = ((startMins - gridStartMins) / 60) * 80;
-                          const height = (differenceInMinutes(booking.endTime, booking.startTime) / 60) * 80;
+                          const height = (differenceInMinutes(displayEnd, displayStart) / 60) * 80;
 
                           const layout = layouts.get(booking.id)!;
                           const bookingRoom = rooms.find(r => r.id === booking.roomId);
@@ -317,49 +485,117 @@ export default function WeeklyView({
 
                           return (
                             <motion.div
-                              initial={{ opacity: 0, y: 10 }}
-                              animate={{ opacity: 1, y: 0 }}
+                              layoutId={`booking-${booking.id}`}
                               key={booking.id}
+                              onMouseDown={(e) => {
+                                e.stopPropagation();
+                                setDragState({
+                                  id: booking.id,
+                                  type: 'move',
+                                  startY: e.clientY,
+                                  startX: e.clientX,
+                                  originalStart: booking.startTime,
+                                  originalEnd: booking.endTime,
+                                  originalRoomId: booking.roomId,
+                                  originalDate: isDayCol ? col as Date : selectedDate,
+                                  currentStart: booking.startTime,
+                                  currentEnd: booking.endTime,
+                                  currentRoomId: booking.roomId,
+                                  currentDate: isDayCol ? col as Date : selectedDate
+                                });
+                              }}
                               onClick={(e) => {
+                                if (isDragging) return;
                                 e.stopPropagation();
                                 onEditBooking(booking);
                               }}
                               className={cn(
-                                "absolute px-3 py-2 pointer-events-auto cursor-pointer flex flex-col justify-between transition-all hover:brightness-105 active:scale-[0.98] rounded-xl shadow-sm font-['Pretendard']"
+                                "absolute px-3 py-2 pointer-events-auto cursor-grab active:cursor-grabbing flex flex-col justify-between transition-shadow rounded-xl shadow-sm font-['Pretendard'] group",
+                                isDragging && "z-50 shadow-xl opacity-90 scale-[1.02] cursor-grabbing"
                               )}
                               style={{
-                                left: `calc(${layout.left} + 2px)`,
-                                width: `calc(${layout.width} - 4px)`,
+                                left: layout.left,
+                                width: layout.width,
                                 top: `${top + 24}px`, // Added offset for pt-6
                                 height: `${height - 2}px`, // Minor adjustment for gap
-                                zIndex: 10,
+                                zIndex: isDragging ? 100 : (10 + layout.index),
                                 background: `linear-gradient(135deg, ${hexColor} 0%, color-mix(in srgb, ${hexColor}, white 20%) 100%)`,
                                 color: 'white'
                               }}
                             >
-                              <div className="flex flex-col overflow-hidden">
-                                <h4 className="text-[15px] font-bold truncate tracking-tight">{booking.title}</h4>
-                                {layout.groupSize >= 3 ? (
+                              {/* Resize Handles */}
+                              <div 
+                                className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize z-20"
+                                onMouseDown={(e) => {
+                                  e.stopPropagation();
+                                  setDragState({
+                                    id: booking.id,
+                                    type: 'resize-top',
+                                    startY: e.clientY,
+                                    startX: e.clientX,
+                                    originalStart: booking.startTime,
+                                    originalEnd: booking.endTime,
+                                    originalRoomId: booking.roomId,
+                                    originalDate: isDayCol ? col as Date : selectedDate,
+                                    currentStart: booking.startTime,
+                                    currentEnd: booking.endTime,
+                                    currentRoomId: booking.roomId,
+                                    currentDate: isDayCol ? col as Date : selectedDate
+                                  });
+                                }}
+                              />
+                              <div 
+                                className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize z-20"
+                                onMouseDown={(e) => {
+                                  e.stopPropagation();
+                                  setDragState({
+                                    id: booking.id,
+                                    type: 'resize-bottom',
+                                    startY: e.clientY,
+                                    startX: e.clientX,
+                                    originalStart: booking.startTime,
+                                    originalEnd: booking.endTime,
+                                    originalRoomId: booking.roomId,
+                                    originalDate: isDayCol ? col as Date : selectedDate,
+                                    currentStart: booking.startTime,
+                                    currentEnd: booking.endTime,
+                                    currentRoomId: booking.roomId,
+                                    currentDate: isDayCol ? col as Date : selectedDate
+                                  });
+                                }}
+                              />
+
+                              <div className="flex flex-col overflow-hidden h-full pointer-events-none">
+                                {layout.groupSize < 6 ? (
                                   <>
-                                    <div className="text-[12px] mt-1 opacity-90 leading-[1.2]">
-                                        <div>{format(booking.startTime, 'HH:mm')}</div>
-                                        <div>-</div>
-                                        <div>{format(booking.endTime, 'HH:mm')}</div>
-                                    </div>
-                                    <div className="text-[12px] mt-1.5 opacity-90 leading-tight">
-                                      <div className="truncate">{booking.organizer}</div>
-                                      <div className="truncate">{bookingRoom ? bookingRoom.name : '삭제된 회의실'}</div>
-                                    </div>
+                                    <h4 className="text-[15px] font-bold truncate tracking-tight">{booking.title}</h4>
+                                    {layout.groupSize >= 3 ? (
+                                      <>
+                                        <div className="text-[12px] mt-1 opacity-90 leading-[1.2]">
+                                            <div>{format(displayStart, 'HH:mm')}</div>
+                                            <div>-</div>
+                                            <div>{format(displayEnd, 'HH:mm')}</div>
+                                        </div>
+                                        <div className="text-[12px] mt-1.5 opacity-90 leading-tight">
+                                          <div className="truncate">{booking.organizer}</div>
+                                          <div className="truncate">{bookingRoom ? bookingRoom.name : '삭제된 회의실'}</div>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <div className="text-[13px] mt-1 opacity-90 truncate">
+                                            {format(displayStart, 'HH:mm')} - {format(displayEnd, 'HH:mm')}
+                                        </div>
+                                        <p className="text-[13px] mt-0.5 opacity-90 truncate">
+                                          {booking.organizer} • {bookingRoom ? bookingRoom.name : '삭제된 회의실'}
+                                        </p>
+                                      </>
+                                    )}
                                   </>
                                 ) : (
-                                  <>
-                                    <div className="text-[13px] mt-1 opacity-90 truncate">
-                                        {format(booking.startTime, 'HH:mm')} - {format(booking.endTime, 'HH:mm')}
-                                    </div>
-                                    <p className="text-[13px] mt-0.5 opacity-90 truncate">
-                                      {booking.organizer} • {bookingRoom ? bookingRoom.name : '삭제된 회의실'}
-                                    </p>
-                                  </>
+                                  <div className="flex flex-col h-full justify-center items-center opacity-40">
+                                    {/* Optional: Add a small icon or nothing at all as per request */}
+                                  </div>
                                 )}
                               </div>
                             </motion.div>
