@@ -164,7 +164,7 @@ export default function WeeklyView({
         <div className="min-w-[1000px] flex flex-col h-full">
           {/* Headers */}
           <div 
-            className="grid bg-white sticky top-0 z-30 border-b border-[#E5E5E5] h-12"
+            className="grid bg-white sticky top-0 z-30 border-b border-[#E5E5E5] h-[50px]"
             style={{ gridTemplateColumns: `80px repeat(${columns.length}, 1fr)` }}
           >
             <div className="border-r border-[#EEEEEE]" />
