@@ -176,15 +176,36 @@ export default function App() {
       const url = bookingData.id ? `/api/bookings/${bookingData.id}` : "/api/bookings";
       const method = bookingData.id ? "PUT" : "POST";
 
+      // Optimistic UI Update
+      const oldBookings = [...bookings];
+      if (bookingData.id) {
+        setBookings(prev => prev.map(b => b.id === bookingData.id ? { ...b, ...bookingData } as Booking : b));
+      } else {
+        // For new bookings, we'll wait for the server to get the ID, 
+        // but for updates (drags), we want it instant.
+      }
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(dbPayload)
       });
 
-      if (!res.ok) throw new Error("Failed to save booking");
+      if (!res.ok) {
+        setBookings(oldBookings); // Rollback on error
+        throw new Error("Failed to save booking");
+      }
       
-      fetchData(false); // 데이터 새로고침
+      const savedBooking = await res.json();
+      
+      // Update with real data from server (especially for new bookings to get the ID)
+      if (!bookingData.id) {
+        fetchData(false);
+      } else {
+        // For updates, we can just sync if needed, but the optimistic update already handled it.
+        // We'll still call fetchData to be safe and ensure everything is in sync with other users.
+        fetchData(false);
+      }
       setIsModalOpen(false);
     } catch (error) {
       console.error('Error saving booking:', error);

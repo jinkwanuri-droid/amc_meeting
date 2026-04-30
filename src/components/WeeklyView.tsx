@@ -53,6 +53,8 @@ export default function WeeklyView({
     type: 'move' | 'resize-top' | 'resize-bottom';
     startY: number;
     startX: number;
+    hasMoved: boolean;
+    gridRect: DOMRect | null;
     originalStart: Date;
     originalEnd: Date;
     originalRoomId: string;
@@ -70,6 +72,13 @@ export default function WeeklyView({
       const deltaY = e.clientY - dragState.startY;
       const deltaX = e.clientX - dragState.startX;
       
+      // Drag threshold: Only start "dragging" after 5px movement
+      if (!dragState.hasMoved && Math.abs(deltaY) < 5 && Math.abs(deltaX) < 5) return;
+      
+      if (!dragState.hasMoved) {
+        setDragState(prev => prev ? { ...prev, hasMoved: true } : null);
+      }
+
       // Calculate time delta (80px = 60mins, 40px = 30mins, 20px = 15mins)
       // We snap to 30 min intervals (40px)
       const snapMinutes = 30;
@@ -83,10 +92,9 @@ export default function WeeklyView({
         const newEnd = addMinutes(dragState.originalEnd, snappedDeltaY);
         
         // Handle column change (X delta)
-        // Find the column under cursor
-        const gridElement = document.getElementById('calendar-grid');
-        if (gridElement) {
-          const rect = gridElement.getBoundingClientRect();
+        // Use cached rect for performance
+        const rect = dragState.gridRect;
+        if (rect) {
           const gridWidth = rect.width - 80; // subtracting time column
           const colWidth = gridWidth / (viewMode === 'week' ? 5 : rooms.length);
           const colIndex = Math.floor((e.clientX - rect.left - 80) / colWidth);
@@ -100,13 +108,19 @@ export default function WeeklyView({
               const dStart = setMinutes(setHours(newDate, newStart.getHours()), newStart.getMinutes());
               const dEnd = setMinutes(setHours(newDate, newEnd.getHours()), newEnd.getMinutes());
               
-              setDragState(prev => prev ? { ...prev, currentStart: dStart, currentEnd: dEnd, currentDate: newDate } : null);
+              if (dStart.getTime() !== dragState.currentStart.getTime() || dEnd.getTime() !== dragState.currentEnd.getTime() || !isSameDay(newDate, dragState.currentDate)) {
+                setDragState(prev => prev ? { ...prev, currentStart: dStart, currentEnd: dEnd, currentDate: newDate } : null);
+              }
             } else {
               const newRoom = rooms[colIndex];
-              setDragState(prev => prev ? { ...prev, currentStart: newStart, currentEnd: newEnd, currentRoomId: newRoom.id } : null);
+              if (newStart.getTime() !== dragState.currentStart.getTime() || newEnd.getTime() !== dragState.currentEnd.getTime() || newRoom.id !== dragState.currentRoomId) {
+                setDragState(prev => prev ? { ...prev, currentStart: newStart, currentEnd: newEnd, currentRoomId: newRoom.id } : null);
+              }
             }
           } else {
-            setDragState(prev => prev ? { ...prev, currentStart: newStart, currentEnd: newEnd } : null);
+            if (newStart.getTime() !== dragState.currentStart.getTime() || newEnd.getTime() !== dragState.currentEnd.getTime()) {
+              setDragState(prev => prev ? { ...prev, currentStart: newStart, currentEnd: newEnd } : null);
+            }
           }
         }
       } else if (dragState.type === 'resize-top') {
@@ -123,7 +137,7 @@ export default function WeeklyView({
     };
 
     const handleMouseUp = (e: MouseEvent) => {
-      if (dragState && onUpdateBooking) {
+      if (dragState && onUpdateBooking && dragState.hasMoved) {
         // Only update if there was actual movement or resizing
         const hasMoved = dragState.type === 'move' && (
           dragState.currentStart.getTime() !== dragState.originalStart.getTime() ||
@@ -485,15 +499,19 @@ export default function WeeklyView({
 
                           return (
                             <motion.div
-                              layoutId={`booking-${booking.id}`}
+                              layout={!isDragging}
+                              layoutId={isDragging ? undefined : `booking-${booking.id}`}
                               key={booking.id}
                               onMouseDown={(e) => {
                                 e.stopPropagation();
+                                const gridElement = document.getElementById('calendar-grid');
                                 setDragState({
                                   id: booking.id,
                                   type: 'move',
                                   startY: e.clientY,
                                   startX: e.clientX,
+                                  hasMoved: false,
+                                  gridRect: gridElement?.getBoundingClientRect() || null,
                                   originalStart: booking.startTime,
                                   originalEnd: booking.endTime,
                                   originalRoomId: booking.roomId,
@@ -505,13 +523,14 @@ export default function WeeklyView({
                                 });
                               }}
                               onClick={(e) => {
-                                if (isDragging) return;
+                                if (dragState?.hasMoved) return;
                                 e.stopPropagation();
                                 onEditBooking(booking);
                               }}
                               className={cn(
-                                "absolute px-3 py-2 pointer-events-auto cursor-grab active:cursor-grabbing flex flex-col justify-between transition-shadow rounded-xl shadow-sm font-['Pretendard'] group",
-                                isDragging && "z-50 shadow-xl opacity-90 scale-[1.02] cursor-grabbing"
+                                "absolute px-3 py-2 pointer-events-auto cursor-grab active:cursor-grabbing flex flex-col justify-between rounded-xl shadow-sm font-['Pretendard'] group",
+                                !isDragging && "transition-all duration-200",
+                                isDragging && "z-50 shadow-xl opacity-95 scale-[1.03] cursor-grabbing"
                               )}
                               style={{
                                 left: layout.left,
@@ -520,7 +539,8 @@ export default function WeeklyView({
                                 height: `${height - 2}px`, // Minor adjustment for gap
                                 zIndex: isDragging ? 100 : (10 + layout.index),
                                 background: `linear-gradient(135deg, ${hexColor} 0%, color-mix(in srgb, ${hexColor}, white 20%) 100%)`,
-                                color: 'white'
+                                color: 'white',
+                                transition: isDragging ? 'none' : undefined
                               }}
                             >
                               {/* Resize Handles */}
@@ -528,11 +548,14 @@ export default function WeeklyView({
                                 className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize z-20"
                                 onMouseDown={(e) => {
                                   e.stopPropagation();
+                                  const gridElement = document.getElementById('calendar-grid');
                                   setDragState({
                                     id: booking.id,
                                     type: 'resize-top',
                                     startY: e.clientY,
                                     startX: e.clientX,
+                                    hasMoved: false,
+                                    gridRect: gridElement?.getBoundingClientRect() || null,
                                     originalStart: booking.startTime,
                                     originalEnd: booking.endTime,
                                     originalRoomId: booking.roomId,
@@ -548,11 +571,14 @@ export default function WeeklyView({
                                 className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize z-20"
                                 onMouseDown={(e) => {
                                   e.stopPropagation();
+                                  const gridElement = document.getElementById('calendar-grid');
                                   setDragState({
                                     id: booking.id,
                                     type: 'resize-bottom',
                                     startY: e.clientY,
                                     startX: e.clientX,
+                                    hasMoved: false,
+                                    gridRect: gridElement?.getBoundingClientRect() || null,
                                     originalStart: booking.startTime,
                                     originalEnd: booking.endTime,
                                     originalRoomId: booking.roomId,
