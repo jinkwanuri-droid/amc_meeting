@@ -17,6 +17,10 @@ async function startServer() {
 
   // DB 초기화 함수
   async function initDB() {
+    if (!process.env.POSTGRES_URL) {
+      console.warn("⚠️ POSTGRES_URL is missing. Database features will not work.");
+      return;
+    }
     try {
       await sql`
         CREATE TABLE IF NOT EXISTS rooms (
@@ -134,6 +138,8 @@ async function startServer() {
     try {
       const rooms = req.body;
       if (!Array.isArray(rooms)) throw new Error("Invalid payload: expected array");
+      
+      if (!process.env.POSTGRES_URL) throw new Error("Database connection not configured (POSTGRES_URL missing)");
 
       // 1. 모든 회의실 삭제 (트랜잭션 대신)
       // 데이터가 적고 예약 데이터는 room_id(TEXT)를 참조하므로 
@@ -176,6 +182,8 @@ async function startServer() {
     try {
       const holidays = req.body;
       if (!Array.isArray(holidays)) throw new Error("Invalid payload: expected array");
+      
+      if (!process.env.POSTGRES_URL) throw new Error("Database connection not configured (POSTGRES_URL missing)");
 
       const currentIds = holidays.map(h => h.id);
       const { rows: existingHolidays } = await sql`SELECT id FROM holidays`;

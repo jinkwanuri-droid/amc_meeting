@@ -42,18 +42,25 @@ export default function App() {
       
       const mappedBookings = (Array.isArray(bookingsData) ? bookingsData : []).map((b: any) => {
         try {
+          const parseDate = (val: any) => {
+            if (!val) return new Date();
+            if (val instanceof Date) return val;
+            if (typeof val === 'number') return new Date(val);
+            return parseISO(val);
+          };
+
           return {
             id: b.id,
             title: b.title,
             roomId: b.room_id,
-            startTime: b.start_time ? parseISO(b.start_time) : new Date(),
-            endTime: b.end_time ? parseISO(b.end_time) : new Date(),
+            startTime: parseDate(b.start_time),
+            endTime: parseDate(b.end_time),
             organizer: b.organizer,
             description: b.description,
             color: b.color
           };
         } catch (e) {
-          console.warn("Invalid booking date:", b);
+          console.warn("Invalid booking date:", b, e);
           return null;
         }
       }).filter(Boolean) as Booking[];
@@ -81,13 +88,19 @@ export default function App() {
       
       const mappedCustomHolidays = (Array.isArray(customHolidaysData) ? customHolidaysData : []).map((h: any) => {
         try {
+          const parseDate = (val: any) => {
+            if (!val) return new Date();
+            if (val instanceof Date) return val;
+            if (typeof val === 'number') return new Date(val);
+            return parseISO(val);
+          };
           return {
             id: h.id,
             name: h.name,
-            date: typeof h.date === 'string' ? parseISO(h.date) : new Date(h.date)
+            date: parseDate(h.date)
           };
         } catch (e) {
-          console.warn("Invalid holiday date:", h);
+          console.warn("Invalid holiday date:", h, e);
           return null;
         }
       }).filter(Boolean) as Holiday[];
@@ -187,9 +200,9 @@ export default function App() {
     try {
       const payload = newRooms.map((r, i) => ({
         id: r.id,
-        name: r.name,
-        color: r.color,
-        capacity: r.capacity,
+        name: r.name || '새 회의실',
+        color: r.color || 'bg-slate-400',
+        capacity: r.capacity || 4,
         order: i
       }));
 
