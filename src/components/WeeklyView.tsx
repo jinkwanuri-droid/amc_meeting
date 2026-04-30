@@ -274,7 +274,7 @@ export default function WeeklyView({
                   style={{ gridTemplateColumns: `80px 1fr` }}
                 >
                   <div className="flex justify-end items-center pr-2 h-0">
-                    <span className="bg-[#ff6b6b] text-white text-[10px] font-black px-1.5 py-0.5 shadow-md whitespace-nowrap rounded-sm leading-none">
+                    <span className="bg-[#ff6b6b] text-white text-[10px] font-black px-1.5 py-0.5 shadow-md whitespace-nowrap rounded-sm leading-none flex items-center justify-center">
                       {format(now, 'HH:mm')}
                     </span>
                   </div>

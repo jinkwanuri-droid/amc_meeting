@@ -31,42 +31,71 @@ export default function App() {
     try {
       // 1. 회의실 가져오기
       const roomsRes = await fetch("/api/rooms");
+      if (!roomsRes.ok) throw new Error(`Rooms fetch failed: ${roomsRes.status}`);
       const roomsData = await roomsRes.json();
       setRooms(Array.isArray(roomsData) ? roomsData : []);
 
       // 2. 예약 가져오기
       const bookingsRes = await fetch("/api/bookings");
+      if (!bookingsRes.ok) throw new Error(`Bookings fetch failed: ${bookingsRes.status}`);
       const bookingsData = await bookingsRes.json();
       
-      const mappedBookings = (Array.isArray(bookingsData) ? bookingsData : []).map((b: any) => ({
-        id: b.id,
-        title: b.title,
-        roomId: b.room_id,
-        startTime: parseISO(b.start_time),
-        endTime: parseISO(b.end_time),
-        organizer: b.organizer,
-        description: b.description,
-        color: b.color
-      }));
+      const mappedBookings = (Array.isArray(bookingsData) ? bookingsData : []).map((b: any) => {
+        try {
+          return {
+            id: b.id,
+            title: b.title,
+            roomId: b.room_id,
+            startTime: b.start_time ? parseISO(b.start_time) : new Date(),
+            endTime: b.end_time ? parseISO(b.end_time) : new Date(),
+            organizer: b.organizer,
+            description: b.description,
+            color: b.color
+          };
+        } catch (e) {
+          console.warn("Invalid booking date:", b);
+          return null;
+        }
+      }).filter(Boolean) as Booking[];
       setBookings(mappedBookings);
 
       // 3. 공휴일 가져오기
       const currentYear = getYear(new Date());
-      const basicHolidays = [...getKoreanHolidays(currentYear), ...getKoreanHolidays(currentYear + 1)]
-        .map(h => ({ id: `basic-${h.name}-${h.date.getTime()}`, ...h }));
-      
-      const holidaysRes = await fetch("/api/holidays");
-      const customHolidays = await holidaysRes.json();
-      
-      const mappedCustomHolidays = (Array.isArray(customHolidays) ? customHolidays : []).map((h: any) => ({
-        id: h.id,
-        name: h.name,
-        date: parseISO(h.date)
+      const basicKoreanHolidays = [...getKoreanHolidays(currentYear), ...getKoreanHolidays(currentYear + 1)];
+      const basicHolidays = basicKoreanHolidays.map(h => ({ 
+        id: `basic-${h.name}-${h.date.getTime()}`, 
+        ...h 
       }));
+      
+      let customHolidaysData = [];
+      try {
+        const holidaysRes = await fetch("/api/holidays");
+        if (holidaysRes.ok) {
+          customHolidaysData = await holidaysRes.json();
+        } else {
+          console.warn(`Holidays API returned ${holidaysRes.status}`);
+        }
+      } catch (e) {
+        console.warn("Could not fetch custom holidays:", e);
+      }
+      
+      const mappedCustomHolidays = (Array.isArray(customHolidaysData) ? customHolidaysData : []).map((h: any) => {
+        try {
+          return {
+            id: h.id,
+            name: h.name,
+            date: typeof h.date === 'string' ? parseISO(h.date) : new Date(h.date)
+          };
+        } catch (e) {
+          console.warn("Invalid holiday date:", h);
+          return null;
+        }
+      }).filter(Boolean) as Holiday[];
 
       setHolidays([...basicHolidays, ...mappedCustomHolidays]);
     } catch (error) {
       console.error('Error fetching data:', error);
+      // Optional: set some UI state to show error
     } finally {
       setIsLoading(false);
     }
@@ -152,8 +181,10 @@ export default function App() {
   };
 
   const handleUpdateRooms = async (newRooms: Room[]) => {
+    // 긍정적 업데이트 (Optimistic Update)
+    setRooms(newRooms);
+
     try {
-      // 순서 보존을 위해 order 필드 업데이트
       const payload = newRooms.map((r, i) => ({
         id: r.id,
         name: r.name,
@@ -162,18 +193,29 @@ export default function App() {
         order: i
       }));
 
-      await fetch("/api/rooms/upsert", {
+      const res = await fetch("/api/rooms/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      fetchData();
+
+      if (!res.ok) throw new Error("Sync failed");
+      fetchData(); // 최종 데이터 동기화
     } catch (error) {
       console.error('Error updating rooms:', error);
+      alert('회의실 저장 중 오류가 발생했습니다.');
+      fetchData(); // 실패 시 원래대로 복구
     }
   };
 
   const handleUpdateHolidays = async (newHolidays: Holiday[]) => {
+    // 필터링 및 매핑
+    const currentYear = getYear(new Date());
+    const basicIds = getKoreanHolidays(currentYear).map(h => `basic-${h.name}-${h.date.getTime()}`);
+    
+    // 로컬 상태 업데이트
+    setHolidays(newHolidays);
+
     try {
       const customOnes = newHolidays.filter(h => h.isCustom).map(h => ({
         id: h.id,
@@ -181,18 +223,18 @@ export default function App() {
         date: h.date instanceof Date ? h.date.toISOString().split('T')[0] : h.date
       }));
 
-      // 삭제된 항목 처리는 더 복잡할 수 있으나, 여기서는 단순화하여 Upsert만 처리
-      // 실제로는 전체 목록을 비교하여 삭제된 ID를 찾아 DELETE 요청을 보내야 함
-      if (customOnes.length > 0) {
-        await fetch("/api/holidays/upsert", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(customOnes)
-        });
-      }
+      const res = await fetch("/api/holidays/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(customOnes)
+      });
+
+      if (!res.ok) throw new Error("Holiday sync failed");
       fetchData();
     } catch (error) {
       console.error('Error updating holidays:', error);
+      alert('공휴일 저장 중 오류가 발생했습니다.');
+      fetchData();
     }
   };
 

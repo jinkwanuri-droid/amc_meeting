@@ -153,13 +153,25 @@ interface SettingsModalProps {
 export default function SettingsModal({
   isOpen,
   onClose,
-  rooms,
-  holidays,
+  rooms: initialRooms,
+  holidays: initialHolidays,
   onUpdateRooms,
   onUpdateHolidays
 }: SettingsModalProps) {
   const [activeTab, setActiveTab] = React.useState<'rooms' | 'holidays'>('rooms');
   const [isEditMode, setIsEditMode] = React.useState(false);
+  
+  // Local state for immediate feedback
+  const [localRooms, setLocalRooms] = React.useState<Room[]>(initialRooms);
+  const [localHolidays, setLocalHolidays] = React.useState<Holiday[]>(initialHolidays);
+
+  // Sync from props when modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      setLocalRooms(initialRooms);
+      setLocalHolidays(initialHolidays);
+    }
+  }, [isOpen, initialRooms, initialHolidays]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -176,49 +188,68 @@ export default function SettingsModal({
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      const oldIndex = rooms.findIndex((r) => r.id === active.id);
-      const newIndex = rooms.findIndex((r) => r.id === over.id);
-      onUpdateRooms(arrayMove(rooms, oldIndex, newIndex));
+      const oldIndex = localRooms.findIndex((r) => r.id === active.id);
+      const newIndex = localRooms.findIndex((r) => r.id === over.id);
+      const nextRooms = arrayMove(localRooms, oldIndex, newIndex) as Room[];
+      setLocalRooms(nextRooms);
+      onUpdateRooms(nextRooms);
     }
   };
 
   const addRoom = () => {
     const newRoom: Room = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: '',
+      id: `room-${Math.random().toString(36).substring(2, 9)}`,
+      name: '새 회의실',
       capacity: 4,
       color: ROOM_THEME_COLORS[0]
     };
-    onUpdateRooms([newRoom, ...rooms]); // Prepend new items
+    const nextRooms = [newRoom, ...localRooms];
+    setLocalRooms(nextRooms);
+    onUpdateRooms(nextRooms);
   };
 
   const removeRoom = (id: string) => {
-    onUpdateRooms(rooms.filter(r => r.id !== id));
+    const nextRooms = localRooms.filter(r => r.id !== id);
+    setLocalRooms(nextRooms);
+    onUpdateRooms(nextRooms);
   };
 
   const updateRoom = (id: string, updates: Partial<Room>) => {
-    onUpdateRooms(rooms.map(r => r.id === id ? { ...r, ...updates } : r));
-  };
-
-  const updateHoliday = (id: string, updates: Partial<Holiday>) => {
-    onUpdateHolidays(holidays.map(h => h.id === id ? { ...h, ...updates } : h));
+    const nextRooms = localRooms.map(r => r.id === id ? { ...r, ...updates } : r);
+    setLocalRooms(nextRooms);
+    // Don't sync on every keystroke, but maybe on blur? 
+    // For now, let's just use the "Check" button to save or wait for completion.
   };
 
   const addHoliday = () => {
     const newHoliday: Holiday = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: '',
+      id: `holiday-${Math.random().toString(36).substring(2, 9)}`,
+      name: '새 일정',
       date: new Date(),
       isCustom: true
     };
-    onUpdateHolidays([newHoliday, ...holidays]); // Prepend new items
+    const nextHolidays = [newHoliday, ...localHolidays];
+    setLocalHolidays(nextHolidays);
+    onUpdateHolidays(nextHolidays);
   };
 
   const removeHoliday = (id: string) => {
-    onUpdateHolidays(holidays.filter(h => h.id !== id));
+    const nextHolidays = localHolidays.filter(h => h.id !== id);
+    setLocalHolidays(nextHolidays);
+    onUpdateHolidays(nextHolidays);
   };
 
-  const customHolidays = holidays.filter(h => h.isCustom);
+  const updateHoliday = (id: string, updates: Partial<Holiday>) => {
+    const nextHolidays = localHolidays.map(h => h.id === id ? { ...h, ...updates } : h);
+    setLocalHolidays(nextHolidays);
+  };
+
+  const customHolidays = localHolidays.filter(h => h.isCustom);
+
+  const handleSaveAndSync = () => {
+    if (activeTab === 'rooms') onUpdateRooms(localRooms);
+    else onUpdateHolidays(localHolidays);
+  };
 
   if (!isOpen) return null;
 
@@ -254,7 +285,10 @@ export default function SettingsModal({
             </button>
             <div className="mt-auto">
                 <button 
-                onClick={onClose}
+                onClick={() => {
+                  handleSaveAndSync();
+                  onClose();
+                }}
                 className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-black transition-all"
                 >
                 <X size={14} />
@@ -280,7 +314,10 @@ export default function SettingsModal({
                       <Plus size={15} strokeWidth={3} />
                     </button>
                     <button 
-                      onClick={() => setIsEditMode(false)}
+                      onClick={() => {
+                        handleSaveAndSync();
+                        setIsEditMode(false);
+                      }}
                       className="p-1.5 bg-emerald-500 text-white rounded-full hover:bg-emerald-600 transition-all shadow-sm active:scale-95"
                       title="Complete"
                     >
@@ -307,10 +344,10 @@ export default function SettingsModal({
                   onDragEnd={handleDragEnd}
                 >
                   <SortableContext 
-                    items={rooms.map(r => r.id)}
+                    items={localRooms.map(r => r.id)}
                     strategy={verticalListSortingStrategy}
                   >
-                    {rooms.map(room => (
+                    {localRooms.map(room => (
                       <SortableRoomItem 
                         key={room.id} 
                         room={room} 
