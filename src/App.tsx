@@ -281,7 +281,7 @@ export default function App() {
       
       {/* Version Marker for Debugging */}
       <div className="fixed bottom-2 right-2 text-[8px] text-slate-300 pointer-events-none z-50">
-        v1.0.7-debug-env
+        v1.0.9-full-paths
       </div>
       
       <WeeklyView 

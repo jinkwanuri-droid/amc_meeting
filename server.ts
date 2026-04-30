@@ -16,7 +16,7 @@ async function startServer() {
 
   // Request Logging
   app.use((req, res, next) => {
-    console.log(`[${req.method}] ${req.url} - ${new Date().toISOString()}`);
+    console.log(`[REQ] ${req.method} ${req.path} (Original: ${req.originalUrl}) - ${new Date().toISOString()}`);
     next();
   });
 
@@ -45,45 +45,43 @@ async function startServer() {
   }
   await initDB();
 
-  // --- API Routes (Mounted directly on app) ---
+  // --- API Routes ---
+  const apiRouter = express.Router();
   
-  app.get("/api/health", (req, res) => {
+  apiRouter.get("/api/health", (req, res) => {
     res.json({ 
       status: "ok", 
       db: !!process.env.POSTGRES_URL, 
-      time: new Date().toISOString(),
-      version: "1.0.6-direct-mount" 
+      version: "1.0.9-full-paths" 
     });
   });
 
-  app.get("/api/rooms", async (req, res) => {
+  apiRouter.get("/api/rooms", async (req, res) => {
     try {
       const { rows } = await sql`SELECT * FROM rooms ORDER BY "order" ASC`;
       res.json(rows);
     } catch (e: any) {
-      console.error("GET /api/rooms error:", e.message);
+      console.error("[API ERROR] GET /api/rooms:", e.message);
       res.status(500).json({ error: e.message });
     }
   });
 
-  app.post("/api/rooms/sync", async (req, res) => {
+  apiRouter.post("/api/rooms/sync", async (req, res) => {
     try {
       const rooms = req.body;
-      console.log(`Syncing ${Array.isArray(rooms) ? rooms.length : 'invalid'} rooms`);
       if (!Array.isArray(rooms)) return res.status(400).json({ error: "Expected array" });
-      
       await sql`DELETE FROM rooms`;
       for (const r of rooms) {
         await sql`INSERT INTO rooms (id, name, color, capacity, "order") VALUES (${r.id}, ${r.name}, ${r.color}, ${r.capacity}, ${r.order})`;
       }
       res.json({ success: true });
     } catch (e: any) {
-      console.error("POST /api/rooms/sync error:", e.message);
+      console.error("[API ERROR] POST /api/rooms/sync:", e.message);
       res.status(500).json({ error: e.message });
     }
   });
 
-  app.get("/api/bookings", async (req, res) => {
+  apiRouter.get("/api/bookings", async (req, res) => {
     try {
       const { rows } = await sql`SELECT * FROM bookings`;
       res.json(rows);
@@ -92,7 +90,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/bookings", async (req, res) => {
+  apiRouter.post("/api/bookings", async (req, res) => {
     try {
       const b = req.body;
       const { rows } = await sql`INSERT INTO bookings (title, room_id, start_time, end_time, organizer, description, color) VALUES (${b.title}, ${b.room_id}, ${b.start_time}, ${b.end_time}, ${b.organizer}, ${b.description}, ${b.color}) RETURNING *`;
@@ -102,7 +100,7 @@ async function startServer() {
     }
   });
 
-  app.put("/api/bookings/:id", async (req, res) => {
+  apiRouter.put("/api/bookings/:id", async (req, res) => {
     try {
       const b = req.body;
       await sql`UPDATE bookings SET title=${b.title}, room_id=${b.room_id}, start_time=${b.start_time}, end_time=${b.end_time}, organizer=${b.organizer}, description=${b.description}, color=${b.color} WHERE id=${req.params.id}`;
@@ -112,7 +110,7 @@ async function startServer() {
     }
   });
 
-  app.delete("/api/bookings/:id", async (req, res) => {
+  apiRouter.delete("/api/bookings/:id", async (req, res) => {
     try {
       await sql`DELETE FROM bookings WHERE id=${req.params.id}`;
       res.json({ success: true });
@@ -121,7 +119,7 @@ async function startServer() {
     }
   });
 
-  app.get("/api/holidays", async (req, res) => {
+  apiRouter.get("/api/holidays", async (req, res) => {
     try {
       const { rows } = await sql`SELECT * FROM holidays`;
       res.json(rows);
@@ -130,11 +128,10 @@ async function startServer() {
     }
   });
 
-  app.post("/api/holidays/sync", async (req, res) => {
+  apiRouter.post("/api/holidays/sync", async (req, res) => {
     try {
       const holidays = req.body;
       if (!Array.isArray(holidays)) return res.status(400).json({ error: "Expected array" });
-      
       for (const h of holidays) {
         await sql`INSERT INTO holidays (id, name, date) VALUES (${h.id}, ${h.name}, ${h.date}) ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, date=EXCLUDED.date`;
       }
@@ -144,9 +141,12 @@ async function startServer() {
     }
   });
 
-  // Final API 404
+  // Mount API router
+  app.use("/", apiRouter);
+
+  // API 404 fallthrough
   app.all("/api/*", (req, res) => {
-    console.warn(`[API 404] ${req.method} ${req.url}`);
+    console.warn(`[API 404] No match for ${req.method} ${req.originalUrl}`);
     res.status(404).json({ error: "API Route Not Found" });
   });
 
