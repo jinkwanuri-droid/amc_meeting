@@ -56,7 +56,7 @@ export default function Sidebar({ selectedDate, onDateSelect, onOpenSettings, ho
         <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
           <div className="w-3 h-3 bg-white rounded-sm"></div>
         </div>
-        <h1 className="font-bold text-lg tracking-tighter text-[#1A1A1A]">RoomBook</h1>
+        <h1 className="font-bold text-lg tracking-tighter text-[#1A1A1A]">AMC RoomBook</h1>
       </div>
 
       <div className="mb-12">
@@ -64,12 +64,21 @@ export default function Sidebar({ selectedDate, onDateSelect, onOpenSettings, ho
           <h2 className="text-sm font-bold text-[#1A1A1A] tracking-tight">
             {format(currentMonth, 'yyyy. M', { locale: ko })}
           </h2>
-          <div className="flex gap-4">
+          <div className="flex gap-1">
             <button 
               onClick={prevMonth}
               className="p-1 hover:bg-black/5 rounded-md text-slate-400 hover:text-black transition-all"
             >
               <ChevronLeft size={16} />
+            </button>
+            <button 
+              onClick={() => {
+                onDateSelect(new Date());
+                setCurrentMonth(new Date());
+              }}
+              className="px-2 text-[11px] font-bold text-slate-400 hover:text-black hover:bg-black/5 rounded-md transition-all"
+            >
+              T
             </button>
             <button 
               onClick={nextMonth}
@@ -136,7 +145,10 @@ export default function Sidebar({ selectedDate, onDateSelect, onOpenSettings, ho
         <div className="space-y-2">
           {Array.isArray(rooms) && rooms.map((room) => (
             <div key={room.id} className="flex items-center gap-3 px-3 py-2 bg-white rounded-xl border border-[#E5E5E5] shadow-sm transition-all hover:shadow-md cursor-pointer group font-['Pretendard']">
-              <div className={cn("w-2 h-2 rounded-full shrink-0", room.color || 'bg-slate-300')}></div>
+              <div 
+                className="w-2 h-2 rounded-full shrink-0" 
+                style={{ backgroundColor: room.color?.match(/\[(.*?)\]/)?.[1] || '#cbd098' }}
+              ></div>
               <div className="flex-1 flex items-center justify-between min-w-0 gap-2">
                 <p className="text-[13px] font-bold text-[#1A1A1A] truncate">{room.name || 'Unnamed Room'}</p>
                 <p className="text-[11px] text-slate-400 font-medium whitespace-nowrap shrink-0">{room.capacity}인</p>

@@ -78,7 +78,7 @@ function SortableRoomItem({ room, onUpdate, onRemove, isEditMode }: SortableRoom
           onChange={(e) => onUpdate(room.id, { name: e.target.value })}
         />
         
-        <div className="flex items-center gap-3 shrink-0 pr-[15px]">
+        <div className="flex items-center gap-3 shrink-0 pr-[25px]">
           <div className="flex items-center gap-1">
             <input 
               disabled={!isEditMode}
@@ -96,7 +96,8 @@ function SortableRoomItem({ room, onUpdate, onRemove, isEditMode }: SortableRoom
               type="button"
               disabled={!isEditMode}
               onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
-              className={`w-5 h-5 rounded-full ${room.color || 'bg-slate-200'} transition-all flex items-center justify-center hover:scale-105 disabled:hover:scale-100`}
+              className="w-5 h-5 rounded-full transition-all flex items-center justify-center hover:scale-105 disabled:hover:scale-100 shadow-sm"
+              style={{ backgroundColor: room.color?.match(/\[(.*?)\]/)?.[1] || '#cbd098' }}
             >
               {isEditMode && <ChevronDown size={10} className="text-white drop-shadow-sm" />}
             </button>
@@ -117,9 +118,10 @@ function SortableRoomItem({ room, onUpdate, onRemove, isEditMode }: SortableRoom
                         onUpdate(room.id, { color });
                         setIsColorPickerOpen(false);
                       }}
-                      className={`w-5 h-5 rounded-full ${color} transition-all relative hover:scale-110 flex items-center justify-center`}
+                      className="w-5 h-5 rounded-full transition-all relative hover:scale-110 flex items-center justify-center shadow-sm"
+                      style={{ backgroundColor: color.match(/\[(.*?)\]/)?.[1] }}
                     >
-                      {room.color === color && <Check size={8} className="text-white" />}
+                      {room.color === color && <Check size={8} className="text-white drop-shadow-sm" />}
                     </button>
                   ))}
                 </motion.div>
@@ -174,6 +176,16 @@ export default function SettingsModal({
       setLocalHolidays(initialHolidays);
     }
   }, [isOpen, initialRooms, initialHolidays]);
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !isEditMode) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isEditMode, onClose]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -379,6 +391,9 @@ export default function SettingsModal({
                         value={format(holiday.date, 'yyyy-MM-dd')}
                         onChange={(e) => updateHoliday(holiday.id, { date: new Date(e.target.value) })}
                       />
+                      <span className="text-[11px] font-bold text-slate-400 ml-1">
+                        ({format(holiday.date, 'EEEEEE', { locale: ko })})
+                      </span>
                     </div>
                     <div className={`w-7 shrink-0 flex items-center justify-center ${isEditMode ? '' : 'opacity-0 pointer-events-none'}`}>
                       {isEditMode && (

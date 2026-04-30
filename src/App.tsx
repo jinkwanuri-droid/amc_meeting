@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { setHours, setMinutes, startOfDay, addDays, getYear, parseISO } from 'date-fns';
+import { setHours, setMinutes, startOfDay, addDays, getYear, parseISO, format } from 'date-fns';
 import Sidebar from './components/Sidebar';
 import WeeklyView from './components/WeeklyView';
 import BookingModal from './components/BookingModal';
@@ -92,12 +92,14 @@ export default function App() {
             if (!val) return new Date();
             if (val instanceof Date) return val;
             if (typeof val === 'number') return new Date(val);
+            // Handle ISO strings from database
             return parseISO(val);
           };
           return {
             id: h.id,
             name: h.name,
-            date: parseDate(h.date)
+            date: parseDate(h.date),
+            isCustom: true
           };
         } catch (e) {
           console.warn("Invalid holiday date:", h, e);
@@ -105,7 +107,9 @@ export default function App() {
         }
       }).filter(Boolean) as Holiday[];
 
-      setHolidays([...basicHolidays, ...mappedCustomHolidays]);
+      // Sort holidays by date for better management view
+      const allHolidays = [...basicHolidays, ...mappedCustomHolidays].sort((a, b) => a.date.getTime() - b.date.getTime());
+      setHolidays(allHolidays);
     } catch (error) {
       console.error('Error fetching data:', error);
       // Optional: set some UI state to show error
@@ -236,7 +240,7 @@ export default function App() {
       const customOnes = newHolidays.filter(h => h.isCustom).map(h => ({
         id: h.id,
         name: h.name,
-        date: h.date instanceof Date ? h.date.toISOString().split('T')[0] : h.date
+        date: h.date instanceof Date ? format(h.date, 'yyyy-MM-dd') : h.date
       }));
 
       const res = await fetch("/api/holidays/sync", {
@@ -278,22 +282,6 @@ export default function App() {
         rooms={rooms}
         viewMode={viewMode}
       />
-      
-      {/* Version Marker for Debugging */}
-      <div className="fixed bottom-2 right-2 text-[8px] text-slate-300 pointer-events-none z-50">
-        v1.0.11-direct-mount
-      </div>
-      
-      <div className="fixed top-2 right-2 z-50 bg-black/80 text-white text-[10px] p-2 rounded w-64 max-h-64 overflow-auto">
-        <h3 className="font-bold mb-1">Server Logs (refresh to update)</h3>
-        <button onClick={async () => {
-          try {
-            const res = await fetch('/debug/logs');
-            const data = await res.json();
-            alert(JSON.stringify(data.logs, null, 2));
-          } catch (e: any) { alert(e.message); }
-        }} className="bg-blue-500 rounded px-2 py-1 mb-2">Fetch Logs</button>
-      </div>
       
       <WeeklyView 
         selectedDate={selectedDate}

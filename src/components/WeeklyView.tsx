@@ -311,7 +311,8 @@ export default function WeeklyView({
 
                           const layout = layouts.get(booking.id)!;
                           const bookingRoom = rooms.find(r => r.id === booking.roomId);
-                          const themeColor = bookingRoom?.color || 'bg-slate-400';
+                          const themeColor = bookingRoom?.color || 'bg-[#cbd098]';
+                          const hexColor = themeColor.match(/\[(.*?)\]/)?.[1] || '#cbd098';
 
                           return (
                             <motion.div
@@ -323,23 +324,23 @@ export default function WeeklyView({
                                 onEditBooking(booking);
                               }}
                               className={cn(
-                                "absolute px-3 py-2 pointer-events-auto cursor-pointer flex flex-col justify-between transition-all hover:brightness-110 rounded-lg shadow-sm border-l-4 border-black/20",
-                                themeColor,
-                                "text-white"
+                                "absolute px-3 py-2 pointer-events-auto cursor-pointer flex flex-col justify-between transition-all hover:brightness-90 rounded-lg shadow-sm font-['Pretendard']"
                               )}
                               style={{
                                 left: layout.left,
                                 width: layout.width,
                                 top: `${top + 24}px`, // Added offset for pt-6
                                 height: `${height}px`,
-                                zIndex: 10
+                                zIndex: 10,
+                                backgroundColor: hexColor,
+                                color: 'white'
                               }}
                             >
                               <div className="overflow-hidden">
                                 <h4 className="text-[11px] font-extrabold truncate leading-tight uppercase tracking-tight">{booking.title}</h4>
-                                <p className="text-[9px] opacity-80 mt-0.5 font-bold truncate">{booking.organizer}</p>
+                                <p className="text-[9px] mt-0.5 font-bold truncate opacity-80">{booking.organizer}</p>
                               </div>
-                              <div className="flex items-center justify-between text-[9px] font-bold opacity-90 mt-1">
+                              <div className="flex items-center justify-between text-[9px] font-bold mt-1 opacity-80">
                                   <span>{format(booking.startTime, 'HH:mm')} - {format(booking.endTime, 'HH:mm')}</span>
                               </div>
                             </motion.div>
