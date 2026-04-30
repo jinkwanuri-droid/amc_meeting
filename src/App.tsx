@@ -212,11 +212,14 @@ export default function App() {
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok) throw new Error("Sync failed");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Sync failed: ${res.status}`);
+      }
       fetchData(); // 최종 데이터 동기화
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating rooms:', error);
-      alert('회의실 저장 중 오류가 발생했습니다.');
+      alert(`회의실 저장 중 오류가 발생했습니다: ${error.message}`);
       fetchData(); // 실패 시 원래대로 복구
     }
   };
@@ -242,11 +245,14 @@ export default function App() {
         body: JSON.stringify(customOnes)
       });
 
-      if (!res.ok) throw new Error("Holiday sync failed");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Holiday sync failed: ${res.status}`);
+      }
       fetchData();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating holidays:', error);
-      alert('공휴일 저장 중 오류가 발생했습니다.');
+      alert(`공휴일 저장 중 오류가 발생했습니다: ${error.message}`);
       fetchData();
     }
   };

@@ -19,7 +19,7 @@ async function startServer() {
   async function initDB() {
     if (!process.env.POSTGRES_URL) {
       console.warn("⚠️ POSTGRES_URL is missing. Database features will not work.");
-      return;
+      return { success: false, error: "POSTGRES_URL missing" };
     }
     try {
       await sql`
@@ -51,13 +51,25 @@ async function startServer() {
         );
       `;
       console.log("✅ Database tables initialized");
-    } catch (error) {
+      return { success: true };
+    } catch (error: any) {
       console.error("❌ Database initialization failed:", error);
+      return { success: false, error: error.message };
     }
   }
 
   // 서버 시작 시 DB 초기화 시도
   initDB();
+
+  // 수동 초기화 엔드포인트
+  app.get("/api/init-db", async (req, res) => {
+    const result = await initDB();
+    if (result.success) {
+      res.json({ message: "Database tables created or already exist." });
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  });
 
   // 1. 회의실 목록 조회
   app.get("/api/rooms", async (req, res) => {
