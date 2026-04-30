@@ -78,7 +78,7 @@ function SortableRoomItem({ room, onUpdate, onRemove, isEditMode }: SortableRoom
           onChange={(e) => onUpdate(room.id, { name: e.target.value })}
         />
         
-        <div className="flex items-center gap-3 shrink-0 pr-1">
+        <div className="flex items-center gap-3 shrink-0 pr-[15px]">
           <div className="flex items-center gap-1">
             <input 
               disabled={!isEditMode}
@@ -371,13 +371,15 @@ export default function SettingsModal({
                       value={holiday.name}
                       onChange={(e) => updateHoliday(holiday.id, { name: e.target.value })}
                     />
-                    <input 
-                      disabled={!isEditMode}
-                      type="date" 
-                      className="bg-transparent border-none focus:ring-0 p-0 text-[11px] font-bold text-slate-400 disabled:opacity-50"
-                      value={format(holiday.date, 'yyyy-MM-dd')}
-                      onChange={(e) => updateHoliday(holiday.id, { date: new Date(e.target.value) })}
-                    />
+                    <div className="flex items-center shrink-0 pr-[15px]">
+                      <input 
+                        disabled={!isEditMode}
+                        type="date" 
+                        className="bg-transparent border-none focus:ring-0 p-0 text-[11px] font-bold text-slate-400 disabled:opacity-50"
+                        value={format(holiday.date, 'yyyy-MM-dd')}
+                        onChange={(e) => updateHoliday(holiday.id, { date: new Date(e.target.value) })}
+                      />
+                    </div>
                     <div className={`w-7 shrink-0 flex items-center justify-center ${isEditMode ? '' : 'opacity-0 pointer-events-none'}`}>
                       {isEditMode && (
                         <button 

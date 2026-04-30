@@ -21,10 +21,18 @@ app.post("/api/rooms/sync", async (req, res) => {
   try {
     const rooms = req.body;
     if (!Array.isArray(rooms)) return res.status(400).json({ error: "Expected array" });
-    await sql`DELETE FROM rooms`;
+    
     for (const r of rooms) {
-      await sql`INSERT INTO rooms (id, name, color, capacity, "order") VALUES (${r.id}, ${r.name}, ${r.color}, ${r.capacity}, ${r.order})`;
+      await sql`INSERT INTO rooms (id, name, color, capacity, "order") VALUES (${r.id}, ${r.name}, ${r.color}, ${r.capacity}, ${r.order}) ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, color=EXCLUDED.color, capacity=EXCLUDED.capacity, "order"=EXCLUDED."order"`;
     }
+    
+    if (rooms.length > 0) {
+      const roomIds = rooms.map(r => r.id);
+      await sql`DELETE FROM rooms WHERE NOT (id = ANY(${roomIds}))`;
+    } else {
+      await sql`DELETE FROM rooms`;
+    }
+    
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -84,6 +92,12 @@ app.post("/api/holidays/sync", async (req, res) => {
     if (!Array.isArray(holidays)) return res.status(400).json({ error: "Expected array" });
     for (const h of holidays) {
       await sql`INSERT INTO holidays (id, name, date) VALUES (${h.id}, ${h.name}, ${h.date}) ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, date=EXCLUDED.date`;
+    }
+    if (holidays.length > 0) {
+      const holidayIds = holidays.map(h => h.id);
+      await sql`DELETE FROM holidays WHERE NOT (id = ANY(${holidayIds}))`;
+    } else {
+      await sql`DELETE FROM holidays`;
     }
     res.json({ success: true });
   } catch (e: any) {
