@@ -134,7 +134,7 @@ export default function Sidebar({ selectedDate, onDateSelect, onOpenSettings, ho
       <div>
         <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-6">Conference Rooms</h3>
         <div className="space-y-3">
-          {rooms.map((room) => (
+          {Array.isArray(rooms) && rooms.map((room) => (
             <div key={room.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-[#E5E5E5] shadow-sm transition-all hover:shadow-md cursor-pointer group">
               <div className={cn("w-2 h-2 rounded-full", room.color || 'bg-slate-300')}></div>
               <div className="flex-1">

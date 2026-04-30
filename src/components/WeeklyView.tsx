@@ -41,9 +41,24 @@ export default function WeeklyView({
   onEditBooking,
   onNavigate 
 }: WeeklyViewProps) {
+  const [now, setNow] = React.useState(new Date());
+
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(new Date());
+    }, 30000); // 30초마다 업데이트
+    return () => clearInterval(timer);
+  }, []);
+
   const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 }); // Start on Monday
   const weekDays = [...Array(5)].map((_, i) => addDays(weekStart, i)); // 5 days (Mon-Fri)
   const hours = [...Array(END_HOUR - START_HOUR + 1)].map((_, i) => START_HOUR + i);
+
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const gridStartMins = START_HOUR * 60;
+  const gridEndMins = (END_HOUR + 1) * 60;
+  const isNowInGrid = nowMins >= gridStartMins && nowMins <= gridEndMins;
+  const timeLineTop = ((nowMins - gridStartMins) / 60) * 80 + 24; // 24px = pt-6
 
   const getHolidayForDay = (date: Date) => holidays.find(h => isSameDay(h.date, date));
 
@@ -172,7 +187,7 @@ export default function WeeklyView({
                        {/* Holiday (approx 25% from left) */}
                        {holiday && (
                          <div className="absolute left-[15%] -translate-x-1/2">
-                           <span className="px-1.5 py-0.5 bg-rose-50 text-rose-500 text-[9px] font-bold rounded-md border border-rose-100 whitespace-nowrap">
+                           <span className="px-1.5 py-0.5 bg-[#ff6b6b]/5 text-[#ff6b6b] text-[9px] font-bold rounded-md border border-[#ff6b6b]/20 whitespace-nowrap">
                              {holiday.name}
                            </span>
                          </div>
@@ -181,7 +196,7 @@ export default function WeeklyView({
                        {/* Date (Center) */}
                        <span className={cn(
                          "text-[13px] font-extrabold tracking-tight",
-                         (holiday || isSun) ? "text-rose-500" : isSat ? "text-blue-500" : "text-[#1A1A1A]"
+                         (holiday || isSun) ? "text-[#ff6b6b]" : isSat ? "text-blue-500" : "text-[#1A1A1A]"
                        )}>
                          {format(col, 'd')}
                        </span>
@@ -190,7 +205,7 @@ export default function WeeklyView({
                        <div className="absolute right-[15%] translate-x-1/2">
                          <span className={cn(
                            "text-[10px] font-bold",
-                           (holiday || isSun) ? "text-rose-400" : isSat ? "text-blue-400" : "text-slate-400"
+                           (holiday || isSun) ? "text-[#ff6b6b]/80" : isSat ? "text-blue-400" : "text-slate-400"
                          )}>
                            {format(col, 'EEE', { locale: ko })}
                          </span>
@@ -247,6 +262,28 @@ export default function WeeklyView({
                 })}
               </div>
             ))}
+
+            {/* Current Time Line */}
+            {isNowInGrid && (
+              <div 
+                className="absolute left-0 right-0 z-40 pointer-events-none"
+                style={{ top: `${timeLineTop}px`, transition: 'top 0.3s ease' }}
+              >
+                <div 
+                  className="grid"
+                  style={{ gridTemplateColumns: `80px 1fr` }}
+                >
+                  <div className="flex justify-end pr-2 relative h-0 flex-col items-end">
+                    <span className="text-[#ff6b6b] text-[10px] font-black bg-white px-1 shadow-[0_0_10px_rgba(255,107,107,0.2)] whitespace-nowrap -translate-y-1/2 border border-[#ff6b6b]/20 rounded-sm">
+                      {format(now, 'HH:mm')}
+                    </span>
+                  </div>
+                  <div className="relative h-[1px] bg-[#ff6b6b]/60">
+                    <div className="absolute left-0 w-2 h-2 rounded-full bg-[#ff6b6b] -translate-y-1/2 -translate-x-1/2 shadow-[0_0_8px_#ff6b6b]" />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Bookings Layer */}
             <div 

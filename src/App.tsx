@@ -12,7 +12,6 @@ import SettingsModal from './components/SettingsModal';
 import { Booking, Room, Holiday } from './types';
 import { BOOKING_COLORS } from './constants';
 import { getKoreanHolidays } from './lib/holidays';
-import { supabase } from './lib/supabase';
 
 export default function App() {
   const [selectedDate, setSelectedDate] = React.useState(new Date());
@@ -33,13 +32,13 @@ export default function App() {
       // 1. 회의실 가져오기
       const roomsRes = await fetch("/api/rooms");
       const roomsData = await roomsRes.json();
-      setRooms(roomsData || []);
+      setRooms(Array.isArray(roomsData) ? roomsData : []);
 
       // 2. 예약 가져오기
       const bookingsRes = await fetch("/api/bookings");
       const bookingsData = await bookingsRes.json();
       
-      const mappedBookings = (bookingsData || []).map((b: any) => ({
+      const mappedBookings = (Array.isArray(bookingsData) ? bookingsData : []).map((b: any) => ({
         id: b.id,
         title: b.title,
         roomId: b.room_id,
@@ -59,7 +58,7 @@ export default function App() {
       const holidaysRes = await fetch("/api/holidays");
       const customHolidays = await holidaysRes.json();
       
-      const mappedCustomHolidays = (customHolidays || []).map((h: any) => ({
+      const mappedCustomHolidays = (Array.isArray(customHolidays) ? customHolidays : []).map((h: any) => ({
         id: h.id,
         name: h.name,
         date: parseISO(h.date)
