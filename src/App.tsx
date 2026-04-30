@@ -281,7 +281,18 @@ export default function App() {
       
       {/* Version Marker for Debugging */}
       <div className="fixed bottom-2 right-2 text-[8px] text-slate-300 pointer-events-none z-50">
-        v1.0.9-full-paths
+        v1.0.11-direct-mount
+      </div>
+      
+      <div className="fixed top-2 right-2 z-50 bg-black/80 text-white text-[10px] p-2 rounded w-64 max-h-64 overflow-auto">
+        <h3 className="font-bold mb-1">Server Logs (refresh to update)</h3>
+        <button onClick={async () => {
+          try {
+            const res = await fetch('/debug/logs');
+            const data = await res.json();
+            alert(JSON.stringify(data.logs, null, 2));
+          } catch (e: any) { alert(e.message); }
+        }} className="bg-blue-500 rounded px-2 py-1 mb-2">Fetch Logs</button>
       </div>
       
       <WeeklyView 

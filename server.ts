@@ -14,10 +14,21 @@ async function startServer() {
   // JSON Middleware
   app.use(express.json());
 
+  const debugLogs: string[] = [];
+  function logDebug(msg: string) {
+    console.log(msg);
+    debugLogs.unshift(msg);
+    if (debugLogs.length > 50) debugLogs.pop();
+  }
+
   // Request Logging
   app.use((req, res, next) => {
-    console.log(`[REQ] ${req.method} ${req.path} (Original: ${req.originalUrl}) - ${new Date().toISOString()}`);
+    logDebug(`[REQ] ${req.method} ${req.path} (Original: ${req.originalUrl}) - ${new Date().toISOString()}`);
     next();
+  });
+
+  app.get("/debug/logs", (req, res) => {
+    res.json({ logs: debugLogs });
   });
 
   // DB Initialization
@@ -45,19 +56,15 @@ async function startServer() {
   }
   await initDB();
 
-  // --- API Routes ---
-  const apiRouter = express.Router();
+  // --- API Routes (Direct Mount) ---
   
-  apiRouter.get("/api/health", (req, res) => {
-    res.json({ 
-      status: "ok", 
-      db: !!process.env.POSTGRES_URL, 
-      version: "1.0.9-full-paths" 
-    });
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", db: !!process.env.POSTGRES_URL, version: "1.0.11-direct-mount" });
   });
 
-  apiRouter.get("/api/rooms", async (req, res) => {
+  app.get("/api/rooms", async (req, res) => {
     try {
+      console.log("[API] GET /api/rooms");
       const { rows } = await sql`SELECT * FROM rooms ORDER BY "order" ASC`;
       res.json(rows);
     } catch (e: any) {
@@ -66,8 +73,9 @@ async function startServer() {
     }
   });
 
-  apiRouter.post("/api/rooms/sync", async (req, res) => {
+  app.post("/api/rooms/sync", async (req, res) => {
     try {
+      console.log(`[API] POST /api/rooms/sync. Body exists: ${!!req.body}, isArray: ${Array.isArray(req.body)}`);
       const rooms = req.body;
       if (!Array.isArray(rooms)) return res.status(400).json({ error: "Expected array" });
       await sql`DELETE FROM rooms`;
@@ -81,7 +89,7 @@ async function startServer() {
     }
   });
 
-  apiRouter.get("/api/bookings", async (req, res) => {
+  app.get("/api/bookings", async (req, res) => {
     try {
       const { rows } = await sql`SELECT * FROM bookings`;
       res.json(rows);
@@ -90,7 +98,7 @@ async function startServer() {
     }
   });
 
-  apiRouter.post("/api/bookings", async (req, res) => {
+  app.post("/api/bookings", async (req, res) => {
     try {
       const b = req.body;
       const { rows } = await sql`INSERT INTO bookings (title, room_id, start_time, end_time, organizer, description, color) VALUES (${b.title}, ${b.room_id}, ${b.start_time}, ${b.end_time}, ${b.organizer}, ${b.description}, ${b.color}) RETURNING *`;
@@ -100,7 +108,7 @@ async function startServer() {
     }
   });
 
-  apiRouter.put("/api/bookings/:id", async (req, res) => {
+  app.put("/api/bookings/:id", async (req, res) => {
     try {
       const b = req.body;
       await sql`UPDATE bookings SET title=${b.title}, room_id=${b.room_id}, start_time=${b.start_time}, end_time=${b.end_time}, organizer=${b.organizer}, description=${b.description}, color=${b.color} WHERE id=${req.params.id}`;
@@ -110,7 +118,7 @@ async function startServer() {
     }
   });
 
-  apiRouter.delete("/api/bookings/:id", async (req, res) => {
+  app.delete("/api/bookings/:id", async (req, res) => {
     try {
       await sql`DELETE FROM bookings WHERE id=${req.params.id}`;
       res.json({ success: true });
@@ -119,7 +127,7 @@ async function startServer() {
     }
   });
 
-  apiRouter.get("/api/holidays", async (req, res) => {
+  app.get("/api/holidays", async (req, res) => {
     try {
       const { rows } = await sql`SELECT * FROM holidays`;
       res.json(rows);
@@ -128,7 +136,7 @@ async function startServer() {
     }
   });
 
-  apiRouter.post("/api/holidays/sync", async (req, res) => {
+  app.post("/api/holidays/sync", async (req, res) => {
     try {
       const holidays = req.body;
       if (!Array.isArray(holidays)) return res.status(400).json({ error: "Expected array" });
@@ -140,9 +148,6 @@ async function startServer() {
       res.status(500).json({ error: e.message });
     }
   });
-
-  // Mount API router
-  app.use("/", apiRouter);
 
   // API 404 fallthrough
   app.all("/api/*", (req, res) => {
