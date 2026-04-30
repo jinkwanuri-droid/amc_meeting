@@ -18,7 +18,7 @@ import { motion, AnimatePresence } from 'motion/react';
 interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (booking: Omit<Booking, 'id'> & { id?: string }) => void;
+  onSubmit: (booking: Omit<Booking, 'id'> & { id?: string }) => Promise<{ success: boolean; message?: string } | void>;
   onDelete?: (id: string) => void;
   initialBooking?: Partial<Booking>;
   selectedDate: Date;
@@ -45,6 +45,8 @@ export default function BookingModal({
   const [endTime, setEndTime] = React.useState(
     format(initialBooking?.endTime || setHours(setMinutes(selectedDate, 0), START_HOUR + 1), 'HH:mm')
   );
+  const [error, setError] = React.useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = React.useState(false);
   const [isStartTimeOpen, setIsStartTimeOpen] = React.useState(false);
   const [isEndTimeOpen, setIsEndTimeOpen] = React.useState(false);
@@ -88,6 +90,8 @@ export default function BookingModal({
       setEndTime(format(initialBooking.endTime || setHours(setMinutes(selectedDate, 0), START_HOUR + 1), 'HH:mm'));
       setIsEditing(!initialBooking.id);
       setIsConfirmingDelete(false);
+      setError(null);
+      setIsSubmitting(false);
     }
   }, [initialBooking, selectedDate, isOpen, rooms]);
 
@@ -145,37 +149,54 @@ export default function BookingModal({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const [startH, startM] = startTime.split(':').map(Number);
-    const [endH, endM] = endTime.split(':').map(Number);
-    
-    const baseDate = initialBooking?.startTime ? startOfDay(initialBooking.startTime) : startOfDay(selectedDate);
-    const start = setHours(setMinutes(baseDate, startM), startH);
-    const end = setHours(setMinutes(baseDate, endM), endH);
+    setError(null);
+    setIsSubmitting(true);
 
-    const selectedRoom = rooms.find(r => r.id === roomId);
-    let bookingColor = initialBooking?.color;
-    
-    if (!bookingColor) {
-      if (selectedRoom?.color) {
-        const baseColor = selectedRoom.color.split('-')[1];
-        bookingColor = `bg-${baseColor}-50 text-${baseColor}-800 border-l-2 border-${baseColor}-500 rounded-sm shadow-sm`;
-      } else {
-        bookingColor = BOOKING_COLORS[Math.floor(Math.random() * BOOKING_COLORS.length)];
+    try {
+      const [startH, startM] = startTime.split(':').map(Number);
+      const [endH, endM] = endTime.split(':').map(Number);
+      
+      const baseDate = initialBooking?.startTime ? startOfDay(initialBooking.startTime) : startOfDay(selectedDate);
+      const start = setHours(setMinutes(baseDate, startM), startH);
+      const end = setHours(setMinutes(baseDate, endM), endH);
+
+      if (isBefore(end, start) || isEqual(end, start)) {
+        setError("종료 시간은 시작 시간보다 늦어야 합니다.");
+        setIsSubmitting(false);
+        return;
       }
-    }
 
-    onSubmit({
-      id: initialBooking?.id,
-      title,
-      roomId,
-      startTime: start,
-      endTime: end,
-      organizer,
-      description,
-      color: bookingColor
-    });
+      const selectedRoom = rooms.find(r => r.id === roomId);
+      let bookingColor = initialBooking?.color;
+      
+      if (!bookingColor) {
+        if (selectedRoom?.color) {
+          const baseColor = selectedRoom.color.split('-')[1];
+          bookingColor = `bg-${baseColor}-50 text-${baseColor}-800 border-l-2 border-${baseColor}-500 rounded-sm shadow-sm`;
+        } else {
+          bookingColor = BOOKING_COLORS[Math.floor(Math.random() * BOOKING_COLORS.length)];
+        }
+      }
+
+      const result = await onSubmit({
+        id: initialBooking?.id,
+        title,
+        roomId,
+        startTime: start,
+        endTime: end,
+        organizer,
+        description,
+        color: bookingColor
+      });
+
+      if (result && !result.success) {
+        setError(result.message || "저장 중 오류가 발생했습니다.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const timeOptions = [];
@@ -261,6 +282,16 @@ export default function BookingModal({
           </div>
 
           <form id="booking-form" onSubmit={handleSubmit} className="p-6 space-y-5">
+            {error && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-center text-[#ff6b6b]"
+              >
+                <div className="text-[12px] font-bold leading-tight whitespace-pre-wrap text-center">{error}</div>
+              </motion.div>
+            )}
+
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-gray-500 uppercase tracking-widest pl-1">
                 회의 제목
@@ -457,22 +488,27 @@ export default function BookingModal({
               {!initialBooking?.id ? (
                 <button
                   type="submit"
-                  className="w-full bg-black text-white rounded-xl py-3.5 px-6 text-[13px] font-bold hover:bg-zinc-800 transition-all shadow-md active:scale-[0.98]"
+                  disabled={isSubmitting}
+                  className="w-full bg-black text-white rounded-xl py-3.5 px-6 text-[13px] font-bold hover:bg-zinc-800 transition-all shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  예약 완료
+                  {isSubmitting && <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  <span>{isSubmitting ? '저장 중...' : '예약 완료'}</span>
                 </button>
               ) : (
                 <button
                   type={isEditing ? "submit" : "button"}
+                  disabled={isSubmitting}
                   onClick={isEditing ? undefined : onClose}
                   className={cn(
-                    "w-full rounded-xl py-3.5 px-6 text-[13px] font-bold transition-all active:scale-[0.98] border",
+                    "w-full rounded-xl py-3.5 px-6 text-[13px] font-bold transition-all active:scale-[0.98] border flex items-center justify-center gap-2",
+                    isSubmitting && "opacity-50 cursor-not-allowed",
                     isEditing 
                       ? "bg-black text-white border-black hover:bg-zinc-800" 
                       : "bg-white border-[#E5E5E5] text-slate-600 hover:bg-gray-50 hover:text-black"
                   )}
                 >
-                  {isEditing ? '적용 및 닫기' : '닫기'}
+                  {isSubmitting && <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  <span>{isEditing ? (isSubmitting ? '저장 중...' : '적용 및 닫기') : '닫기'}</span>
                 </button>
               )}
             </div>

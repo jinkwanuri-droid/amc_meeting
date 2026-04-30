@@ -28,7 +28,7 @@ app.post("/api/rooms/sync", async (req, res) => {
     
     if (rooms.length > 0) {
       const roomIds = rooms.map(r => r.id);
-      await sql`DELETE FROM rooms WHERE NOT (id = ANY(${roomIds}))`;
+      await sql`DELETE FROM rooms WHERE NOT (id = ANY(${roomIds as any}))`;
     } else {
       await sql`DELETE FROM rooms`;
     }
@@ -95,7 +95,7 @@ app.post("/api/holidays/sync", async (req, res) => {
     }
     if (holidays.length > 0) {
       const holidayIds = holidays.map(h => h.id);
-      await sql`DELETE FROM holidays WHERE NOT (id = ANY(${holidayIds}))`;
+      await sql`DELETE FROM holidays WHERE NOT (id = ANY(${holidayIds as any}))`;
     } else {
       await sql`DELETE FROM holidays`;
     }

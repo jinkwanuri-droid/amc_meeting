@@ -65,6 +65,8 @@ export default function WeeklyView({
     currentDate: Date;
   } | null>(null);
 
+  const isDraggingRef = React.useRef(false);
+
   React.useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!dragState) return;
@@ -77,6 +79,7 @@ export default function WeeklyView({
       
       if (!dragState.hasMoved) {
         setDragState(prev => prev ? { ...prev, hasMoved: true } : null);
+        isDraggingRef.current = true;
       }
 
       // Calculate time delta (80px = 60mins, 40px = 30mins, 20px = 15mins)
@@ -138,7 +141,6 @@ export default function WeeklyView({
 
     const handleMouseUp = (e: MouseEvent) => {
       if (dragState && onUpdateBooking && dragState.hasMoved) {
-        // Only update if there was actual movement or resizing
         const hasMoved = dragState.type === 'move' && (
           dragState.currentStart.getTime() !== dragState.originalStart.getTime() ||
           dragState.currentEnd.getTime() !== dragState.originalEnd.getTime() ||
@@ -161,6 +163,12 @@ export default function WeeklyView({
           }
         }
       }
+      
+      // Delay resetting the dragging flag to allow onClick to see it
+      setTimeout(() => {
+        isDraggingRef.current = false;
+      }, 50);
+      
       setDragState(null);
     };
 
@@ -262,7 +270,7 @@ export default function WeeklyView({
   };
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden transition-all">
+    <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden transition-all select-none">
       {/* Header */}
       <header className="h-16 bg-white border-b border-[#E5E5E5] px-8 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-8">
@@ -327,7 +335,14 @@ export default function WeeklyView({
       </header>
 
       {/* Grid */}
-      <div id="calendar-grid" className="flex-1 overflow-auto bg-[#FDFDFD] relative">
+      <div 
+        id="calendar-grid" 
+        className={cn(
+          "flex-1 overflow-auto bg-[#FDFDFD] relative",
+          dragState && "select-none"
+        )}
+        style={{ userSelect: dragState ? 'none' : 'auto' }}
+      >
         <div className="min-w-[1000px] flex flex-col h-full">
           {/* Headers */}
           <div 
@@ -463,6 +478,16 @@ export default function WeeklyView({
                  const isDayCol = col instanceof Date;
 
                  const columnBookings = bookings.filter(booking => {
+                   // If this booking is being dragged, it belongs to its "current" drag column
+                   if (dragState && dragState.id === booking.id) {
+                     if (viewMode === 'week') {
+                       return isSameDay(dragState.currentDate, col as Date);
+                     } else {
+                       return isSameDay(dragState.currentDate, selectedDate) && dragState.currentRoomId === (col as Room).id;
+                     }
+                   }
+
+                   // Original filtering for non-dragged bookings
                    if (viewMode === 'week') {
                      return isSameDay(booking.startTime, col as Date);
                    } else {
@@ -479,13 +504,6 @@ export default function WeeklyView({
                           const displayEnd = isDragging ? dragState.currentEnd : booking.endTime;
                           const displayRoomId = isDragging ? dragState.currentRoomId : booking.roomId;
                           const displayDate = isDragging ? dragState.currentDate : (isDayCol ? col as Date : selectedDate);
-
-                          // Only show the booking in its current/target column
-                          if (viewMode === 'week') {
-                            if (!isSameDay(displayStart, col as Date)) return null;
-                          } else {
-                            if (displayRoomId !== (col as Room).id) return null;
-                          }
 
                           const startMins = displayStart.getHours() * 60 + displayStart.getMinutes();
                           const gridStartMins = START_HOUR * 60;
@@ -504,6 +522,7 @@ export default function WeeklyView({
                               key={booking.id}
                               onMouseDown={(e) => {
                                 e.stopPropagation();
+                                isDraggingRef.current = false;
                                 const gridElement = document.getElementById('calendar-grid');
                                 setDragState({
                                   id: booking.id,
@@ -523,7 +542,7 @@ export default function WeeklyView({
                                 });
                               }}
                               onClick={(e) => {
-                                if (dragState?.hasMoved) return;
+                                if (isDraggingRef.current) return;
                                 e.stopPropagation();
                                 onEditBooking(booking);
                               }}
@@ -548,6 +567,7 @@ export default function WeeklyView({
                                 className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize z-20"
                                 onMouseDown={(e) => {
                                   e.stopPropagation();
+                                  isDraggingRef.current = false;
                                   const gridElement = document.getElementById('calendar-grid');
                                   setDragState({
                                     id: booking.id,
@@ -571,6 +591,7 @@ export default function WeeklyView({
                                 className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize z-20"
                                 onMouseDown={(e) => {
                                   e.stopPropagation();
+                                  isDraggingRef.current = false;
                                   const gridElement = document.getElementById('calendar-grid');
                                   setDragState({
                                     id: booking.id,

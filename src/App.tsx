@@ -158,8 +158,9 @@ export default function App() {
     });
 
     if (hasOverlap) {
-      alert("기존 예약이 있어 저장할 수 없습니다.");
-      return;
+      const msg = "선택하신 시간에 이미 다른 예약이 있습니다.\n중복된 시간을 확인한 후 다시 시도해주세요.";
+      alert(msg);
+      return { success: false, message: msg };
     }
 
     try {
@@ -176,13 +177,10 @@ export default function App() {
       const url = bookingData.id ? `/api/bookings/${bookingData.id}` : "/api/bookings";
       const method = bookingData.id ? "PUT" : "POST";
 
-      // Optimistic UI Update
+      // Optimistic UI Update for quick drag/edit response
       const oldBookings = [...bookings];
       if (bookingData.id) {
         setBookings(prev => prev.map(b => b.id === bookingData.id ? { ...b, ...bookingData } as Booking : b));
-      } else {
-        // For new bookings, we'll wait for the server to get the ID, 
-        // but for updates (drags), we want it instant.
       }
 
       const res = await fetch(url, {
@@ -192,24 +190,17 @@ export default function App() {
       });
 
       if (!res.ok) {
-        setBookings(oldBookings); // Rollback on error
+        if (bookingData.id) setBookings(oldBookings);
         throw new Error("Failed to save booking");
       }
       
-      const savedBooking = await res.json();
-      
-      // Update with real data from server (especially for new bookings to get the ID)
-      if (!bookingData.id) {
-        fetchData(false);
-      } else {
-        // For updates, we can just sync if needed, but the optimistic update already handled it.
-        // We'll still call fetchData to be safe and ensure everything is in sync with other users.
-        fetchData(false);
-      }
+      fetchData(false);
       setIsModalOpen(false);
+      return { success: true };
     } catch (error) {
       console.error('Error saving booking:', error);
       alert('예약 저장 중 오류가 발생했습니다.');
+      return { success: false, message: "저장 중 오류가 발생했습니다." };
     }
   };
 
