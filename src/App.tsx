@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { setHours, setMinutes, startOfDay, addDays, getYear, parseISO, format } from 'date-fns';
 import Sidebar from './components/Sidebar';
 import WeeklyView from './components/WeeklyView';
@@ -121,6 +121,18 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
   const [editingBooking, setEditingBooking] = React.useState<Partial<Booking> | undefined>(undefined);
+
+  useEffect(() => {
+    // Force weekly view on mobile on mount
+    const checkMobile = () => {
+      if (window.innerWidth < 1024) { // lg breakpoint
+        setViewMode('week');
+      }
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const handleAddBooking = (date: Date, hour: number, minutes: number = 0, roomId?: string) => {
     setEditingBooking({
@@ -293,14 +305,16 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-full bg-white font-sans text-slate-900 overflow-hidden">
-      <Sidebar 
-        selectedDate={selectedDate} 
-        onDateSelect={setSelectedDate} 
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        holidays={holidays}
-        rooms={rooms}
-        viewMode={viewMode}
-      />
+      <div className="hidden lg:block h-full">
+        <Sidebar 
+          selectedDate={selectedDate} 
+          onDateSelect={setSelectedDate} 
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          holidays={holidays}
+          rooms={rooms}
+          viewMode={viewMode}
+        />
+      </div>
       
       <WeeklyView 
         selectedDate={selectedDate}

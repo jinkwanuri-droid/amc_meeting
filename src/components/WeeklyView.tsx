@@ -14,7 +14,7 @@ import {
   isAfter
 } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Plus, Users, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Users, Clock, Presentation } from 'lucide-react';
 import { Booking, Room, Holiday } from '../types';
 import { START_HOUR, END_HOUR, ROOMS } from '../constants';
 import { cn } from '../lib/utils';
@@ -99,10 +99,10 @@ export default function WeeklyView({
         const rect = dragState.gridRect;
         if (rect) {
           const gridWidth = rect.width - 80; // subtracting time column
-          const colWidth = gridWidth / (viewMode === 'week' ? 5 : rooms.length);
+          const colWidth = gridWidth / displayColumns.length;
           const colIndex = Math.floor((e.clientX - rect.left - 80) / colWidth);
           
-          if (colIndex >= 0 && colIndex < (viewMode === 'week' ? 5 : rooms.length)) {
+          if (colIndex >= 0 && colIndex < displayColumns.length) {
             if (viewMode === 'week') {
               const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
               const newDate = addDays(weekStart, colIndex);
@@ -197,118 +197,239 @@ export default function WeeklyView({
   const gridStartMins = START_HOUR * 60;
   const gridEndMins = (END_HOUR + 1) * 60;
   const isNowInGrid = nowMins >= gridStartMins && nowMins <= gridEndMins;
-  const timeLineTop = ((nowMins - gridStartMins) / 60) * 80 + 24; // 24px = pt-6
+  const timeLineTop = ((nowMins - gridStartMins) / 60) * 80;
 
   const getHolidayForDay = (date: Date) => holidays.find(h => isSameDay(h.date, date));
 
   // Determine columns based on view mode
   const columns = viewMode === 'week' ? weekDays : rooms;
+  
+  // Always ensure 5 columns for Daily view (Room View)
+  const displayColumns = [...columns];
+  if (viewMode === 'day' && displayColumns.length < 5) {
+    while (displayColumns.length < 5) {
+      displayColumns.push({ id: `empty-${displayColumns.length}`, name: '', isPlaceholder: true } as any);
+    }
+  }
 
   // Helper to calculate visual offsets for overlapping bookings in a column
   const getBookingLayout = (columnBookings: Booking[]) => {
-    const sorted = [...columnBookings].sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
-    const groups: Booking[][] = [];
-    
-    sorted.forEach(booking => {
-      let added = false;
-      for (const group of groups) {
-        if (group.some(g => booking.startTime < g.endTime && booking.endTime > g.startTime)) {
-          group.push(booking);
-          added = true;
-          break;
-        }
-      }
-      if (!added) groups.push([booking]);
-    });
-
     const layouts = new Map<string, { width: string; left: string; index: number; groupSize: number }>();
+    if (columnBookings.length === 0) return layouts;
     
-    // Identify active rooms for this column (day) to create consistent lanes
-    const columnRoomIds = Array.from(new Set(columnBookings.map(b => b.roomId)))
-      .sort((a, b) => {
-        const idxA = rooms.findIndex(r => r.id === a);
-        const idxB = rooms.findIndex(r => r.id === b);
-        return idxA - idxB;
-      });
-    const activeRoomsCount = columnRoomIds.length;
+    if (isMobile) {
+      // [MOBILE VIEW] - Consistent lanes per room (Lane-based logic)
+      const roomsCount = rooms.length || 1;
+      const laneWidth = 100 / roomsCount;
 
-    groups.forEach(group => {
-      const n = group.length;
+      const bookingsByRoom = new Map<string, Booking[]>();
+      columnBookings.forEach(b => {
+        const roomBookings = bookingsByRoom.get(b.roomId) || [];
+        roomBookings.push(b);
+        bookingsByRoom.set(b.roomId, roomBookings);
+      });
+
+      rooms.forEach((room, roomIdx) => {
+        const roomBookings = bookingsByRoom.get(room.id) || [];
+        if (roomBookings.length === 0) return;
+
+        const sorted = [...roomBookings].sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+        const roomGroups: Booking[][] = [];
+        sorted.forEach(booking => {
+          let added = false;
+          for (const group of roomGroups) {
+            if (group.some(g => booking.startTime < g.endTime && booking.endTime > g.startTime)) {
+              group.push(booking);
+              added = true;
+              break;
+            }
+          }
+          if (!added) roomGroups.push([booking]);
+        });
+
+        roomGroups.forEach(group => {
+          const n = group.length;
+          group.forEach((booking, idx) => {
+            const laneLeft = laneWidth * roomIdx;
+            const cardWidthPercent = n > 1 ? (90 / n) : 92;
+            const gutter = (laneWidth * (100 - (cardWidthPercent * n)) / 2) / 100;
+            layouts.set(booking.id, {
+              width: `${laneWidth * (cardWidthPercent / 100)}%`,
+              left: `${laneLeft + (gutter) + (idx * laneWidth * cardWidthPercent / 100)}%`,
+              index: roomIdx,
+              groupSize: roomsCount
+            });
+          });
+        });
+      });
+    } else {
+      // [WEB VIEW] - Dynamic Cascading with Strong Room Alignment
+      const sorted = [...columnBookings].sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
       
-      const roomOrderGroup = [...group].sort((a, b) => {
-        const roomAIdx = rooms.findIndex(r => r.id === a.roomId);
-        const roomBIdx = rooms.findIndex(r => r.id === b.roomId);
-        return roomAIdx - roomBIdx;
-      });
-
-      roomOrderGroup.forEach((booking, idx) => {
-        if (n >= 6) {
-          // Side-by-side for 6+ items
-          // Use global active rooms for the day to ensure constant alignment
-          const roomIdxInDay = columnRoomIds.indexOf(booking.roomId);
-          const laneWidth = 100 / activeRoomsCount;
-          
-          layouts.set(booking.id, {
-            width: `calc(${laneWidth}% - 4px)`,
-            left: `calc(${laneWidth * roomIdxInDay}% + 2px)`,
-            index: roomIdxInDay,
-            groupSize: n
-          });
+      const clusters: Booking[][] = [];
+      let currentCluster: Booking[] = [];
+      let clusterEnd = 0;
+      sorted.forEach(b => {
+        if (currentCluster.length === 0 || b.startTime.getTime() < clusterEnd) {
+          currentCluster.push(b);
+          clusterEnd = Math.max(clusterEnd, b.endTime.getTime());
         } else {
-          // Stacked for 2-5 items
-          const offset = n > 1 ? 40 : 0;
-          layouts.set(booking.id, {
-            width: n > 1 ? `calc(100% - ${(n - 1) * offset}px - 10px)` : `calc(100% - 10px)`,
-            left: `calc(${idx * offset}px + 5px)`,
-            index: idx,
-            groupSize: n
-          });
+          clusters.push(currentCluster);
+          currentCluster = [b];
+          clusterEnd = b.endTime.getTime();
         }
       });
+      if (currentCluster.length > 0) clusters.push(currentCluster);
+
+      clusters.forEach(cluster => {
+        const clusterSize = cluster.length;
+        
+        // Find unique rooms in this cluster for better distribution
+        const uniqueRoomIds = Array.from(new Set(cluster.map(b => b.roomId)))
+          .sort((a, b) => rooms.findIndex(r => r.id === a) - rooms.findIndex(r => r.id === b));
+        const roomsInClusterCount = uniqueRoomIds.length;
+
+        cluster.forEach(booking => {
+          const roomIdx = rooms.findIndex(r => r.id === booking.roomId);
+          const localRoomIdx = uniqueRoomIds.indexOf(booking.roomId);
+          
+          if (clusterSize > 6) {
+            // [GRID MODE] - Proper Column Packing for perfect vertical alignment
+            const columns: Booking[][] = [];
+            const sortedByStartTime = [...cluster].sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+            
+            sortedByStartTime.forEach(b => {
+              let placed = false;
+              for (const col of columns) {
+                // If this booking doesn't overlap with any in this column, place it
+                if (!col.some(cb => b.startTime < cb.endTime && b.endTime > cb.startTime)) {
+                  col.push(b);
+                  placed = true;
+                  break;
+                }
+              }
+              if (!placed) columns.push([b]);
+            });
+
+            const numCols = columns.length;
+            const colIndex = columns.findIndex(col => col.includes(booking));
+            const widthPct = 100 / numCols;
+            const leftPct = (colIndex / numCols) * 100;
+
+            layouts.set(booking.id, {
+              width: `calc(${widthPct}% - 4px)`,
+              left: `calc(${leftPct}% + 2px)`,
+              index: colIndex,
+              groupSize: numCols
+            });
+          } else if (clusterSize === 1) {
+            // [DYNAMIC FULL WIDTH]
+            layouts.set(booking.id, {
+              width: 'calc(100% - 24px)',
+              left: '12px',
+              index: roomIdx,
+              groupSize: 1
+            });
+          } else {
+            // [INTERACTIVE CASCADE] - Reduced overlap even more (approx 5% more gap)
+            const stagger = 48; // Increased from 42 to reduce overlap further
+            const left = 12 + (localRoomIdx * stagger);
+            
+            // Width: Slightly narrower to reduce overlap coverage
+            const baseWidth = (80 / Math.max(roomsInClusterCount, 1)) + 12;
+            
+            const isLastInCluster = localRoomIdx === roomsInClusterCount - 1;
+            const width = isLastInCluster 
+              ? `calc(100% - ${left + 14}px)` 
+              : `${Math.min(baseWidth, 55)}%`; 
+
+            layouts.set(booking.id, {
+              width: width,
+              left: `${left}px`,
+              index: roomIdx,
+              groupSize: clusterSize
+            });
+          }
+        });
+      });
+    }
+
+    // Safety pass
+    columnBookings.forEach(booking => {
+      if (!layouts.has(booking.id)) {
+        layouts.set(booking.id, { width: '92%', left: '4%', index: 0, groupSize: 1 });
+      }
     });
+
     return layouts;
   };
 
+  const [isMobile, setIsMobile] = React.useState(false);
+  React.useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden transition-all select-none">
+    <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden select-none scrollbar-hide">
+      {/* Mobile Top Header (Logo) */}
+      <div className="lg:hidden h-14 bg-white border-b border-[#E5E5E5] px-6 flex items-center shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 bg-black rounded-lg flex items-center justify-center">
+            <Presentation size={18} className="text-white" strokeWidth={2.5} />
+          </div>
+          <h1 className="font-bold text-base tracking-tighter text-[#1A1A1A]">AMC RoomBook</h1>
+        </div>
+      </div>
       {/* Header */}
-      <header className="h-16 bg-white border-b border-[#E5E5E5] px-8 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-8">
-          <h2 className="text-lg font-bold text-[#1A1A1A] tracking-tight w-[200px]">
+      <header className="h-16 bg-white border-b border-[#E5E5E5] px-4 md:px-8 flex items-center justify-between shrink-0 relative">
+        {/* Left: Date Range (Desktop & Mobile) */}
+        <div className="flex items-center gap-2 md:gap-8 overflow-hidden min-w-[100px] md:min-w-0">
+          <h2 className="text-sm md:text-lg font-bold text-[#1A1A1A] tracking-tight w-auto md:w-[200px] truncate shrink-0">
             {viewMode === 'week' ? (
-              <>{format(weekStart, 'yyyy.MM.dd')} - {format(addDays(weekStart, 4), 'MM.dd')}</>
+              <>
+                <span className="hidden lg:inline">{format(weekStart, 'yyyy.MM.dd')} - {format(addDays(weekStart, 4), 'MM.dd')}</span>
+                <span className="lg:hidden text-[16px] md:text-[14px] font-bold text-[#1A1A1A]">{format(weekStart, 'MM.dd')} - {format(addDays(weekStart, 4), 'MM.dd')}</span>
+              </>
             ) : (
               <>{format(selectedDate, 'yyyy. MM. dd', { locale: ko })}</>
             )}
           </h2>
-          <div className="flex bg-gray-100 p-1 rounded-md">
+        </div>
+
+        {/* Center: Navigation */}
+        <div className="flex-1 flex justify-center lg:justify-start lg:flex-none">
+          <div className="flex items-center bg-gray-100 p-0.5 rounded-lg border border-[#E5E5E5] scale-90 md:scale-100">
             <button 
               onClick={() => onNavigate(addDays(selectedDate, viewMode === 'week' ? -7 : -1))}
-              className="p-1 hover:bg-white hover:shadow-sm rounded text-slate-400 hover:text-black transition-all"
+              className="p-1 px-1.5 md:px-2 hover:bg-white hover:shadow-sm rounded-md text-slate-400 hover:text-black transition-all flex items-center"
             >
-              <ChevronLeft size={16} />
+              <ChevronLeft size={16} strokeWidth={2.5} />
             </button>
             <button 
               onClick={() => onNavigate(new Date())}
-              className="px-4 py-1 text-[11px] font-bold text-slate-600 hover:text-black transition-all"
+              className="px-2 py-1.5 text-[10px] md:text-[11px] font-black text-slate-600 hover:text-black transition-all"
             >
               TODAY
             </button>
             <button 
               onClick={() => onNavigate(addDays(selectedDate, viewMode === 'week' ? 7 : 1))}
-              className="p-1 hover:bg-white hover:shadow-sm rounded text-slate-400 hover:text-black transition-all"
+              className="p-1 px-1.5 md:px-2 hover:bg-white hover:shadow-sm rounded-md text-slate-400 hover:text-black transition-all flex items-center"
             >
-              <ChevronRight size={16} />
+              <ChevronRight size={16} strokeWidth={2.5} />
             </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="flex bg-gray-100 p-1 rounded-md">
+        {/* Right: Actions */}
+        <div className="flex items-center gap-2 md:gap-4 ml-2 md:ml-0">
+          <div className="hidden md:flex bg-gray-100 p-1 rounded-md">
             <button 
               onClick={() => onViewModeChange('week')}
               className={cn(
-                "px-4 py-1 text-[12px] rounded transition-all",
+                "px-3 md:px-4 py-1 text-[12px] rounded transition-all",
                 viewMode === 'week' ? "bg-white shadow-sm text-black font-bold" : "text-slate-400 hover:text-slate-600 font-medium"
               )}
             >
@@ -317,19 +438,20 @@ export default function WeeklyView({
             <button 
               onClick={() => onViewModeChange('day')}
               className={cn(
-                "px-4 py-1 text-[12px] rounded transition-all",
+                "hidden md:block px-4 py-1 text-[12px] rounded transition-all",
                 viewMode === 'day' ? "bg-white shadow-sm text-black font-bold" : "text-slate-400 hover:text-slate-600 font-medium"
               )}
             >
               DAILY
             </button>
           </div>
+          
           <button 
             onClick={() => onAddBooking(selectedDate, START_HOUR, 0)}
-            className="bg-black hover:bg-zinc-800 text-white px-5 py-2 rounded-md flex items-center gap-2 text-xs font-bold transition-all shadow-md active:scale-95"
+            className="bg-black hover:bg-zinc-800 text-white px-3 md:px-5 py-2 rounded-md flex items-center gap-2 text-xs font-bold transition-all shadow-md active:scale-95"
           >
             <Plus size={16} strokeWidth={3} />
-            <span>New Reservation</span>
+            <span className="hidden sm:inline">New Reservation</span>
           </button>
         </div>
       </header>
@@ -338,63 +460,96 @@ export default function WeeklyView({
       <div 
         id="calendar-grid" 
         className={cn(
-          "flex-1 overflow-auto bg-[#FDFDFD] relative",
+          "flex-1 overflow-auto bg-[#FDFDFD] relative scrollbar-hide",
           dragState && "select-none"
         )}
         style={{ userSelect: dragState ? 'none' : 'auto' }}
       >
-        <div className="min-w-[1000px] flex flex-col h-full">
+        <div className="min-w-fit md:min-w-[1000px] flex flex-col h-full">
           {/* Headers */}
           <div 
-            className="grid bg-white sticky top-0 z-30 border-b border-[#E5E5E5] shrink-0 h-[50px]"
-            style={{ gridTemplateColumns: `80px repeat(${columns.length}, 1fr)` }}
+            className="grid bg-white sticky top-0 z-30 border-b border-[#E5E5E5] shrink-0 h-[45px] md:h-[50px]"
+            style={{ gridTemplateColumns: `var(--time-col-width) repeat(${displayColumns.length}, 1fr)` }}
           >
-            <div className="border-r border-[#EEEEEE]" />
-            {columns.map((col, idx) => {
+            <style dangerouslySetInnerHTML={{ __html: `
+              :root { --time-col-width: 48px; }
+              @media (min-width: 768px) { :root { --time-col-width: 80px; } }
+            `}} />
+            <div className="border-r md:border-r border-[#EEEEEE] bg-transparent" />
+            {displayColumns.map((col, idx) => {
               const isDay = col instanceof Date;
               const holiday = isDay ? getHolidayForDay(col) : null;
               const isSun = isDay && col.getDay() === 0;
               const isSat = isDay && col.getDay() === 6;
+              const isPlaceholder = (col as any).isPlaceholder;
 
               return (
                 <div 
                   key={isDay ? col.toString() : (col as Room).id} 
                   className={cn(
-                    "flex items-center justify-center border-r border-[#EEEEEE] last:border-r-0 relative px-1 h-full",
-                    isDay && isSameDay(col, new Date()) && "bg-black/5"
+                    "flex flex-col items-center justify-center border-r border-[#EEEEEE] last:border-r-0 relative px-1 h-full bg-white",
+                    isDay && isSameDay(col, new Date()) && "bg-black/5",
+                    isPlaceholder && "bg-[#f9f9f9]"
                   )}
                 >
                   {isDay ? (
-                    <div className="w-full h-full relative flex items-center justify-center">
-                       {/* Holiday (approx 25% from left) */}
-                       {holiday && (
-                         <div className="absolute left-[15%] -translate-x-1/2">
-                           <span className="px-1.5 py-0.5 bg-[#ff6b6b]/5 text-[#ff6b6b] text-[11px] font-bold rounded-md border border-[#ff6b6b]/20 whitespace-nowrap">
-                             {holiday.name}
-                           </span>
-                         </div>
-                       )}
+                    <div className="w-full h-full relative flex flex-col items-center justify-center">
+                       {/* Web Layout: 요일(30% L), 날짜(Center), 공휴일(70% R) */}
+                       <div className="hidden md:flex w-full h-full relative items-center justify-center">
+                          {/* 요일 (30% L) */}
+                          <div className="absolute left-[30%] -translate-x-1/2">
+                             <span className={cn(
+                               "text-[11px] font-bold",
+                               (holiday || isSun) ? "text-[#ff6b6b]/80" : isSat ? "text-blue-400" : "text-slate-400"
+                             )}>
+                               {format(col, 'EEE', { locale: ko })}
+                             </span>
+                          </div>
 
-                       {/* Date (Center) */}
-                       <span className={cn(
-                         "text-[15px] font-extrabold tracking-tight",
-                         (holiday || isSun) ? "text-[#ff6b6b]" : isSat ? "text-blue-500" : "text-[#1A1A1A]"
-                       )}>
-                         {format(col, 'MM.dd')}
-                       </span>
+                          {/* 날짜 (Center) */}
+                          <span className={cn(
+                            "text-[14px] font-extrabold tracking-tight",
+                            (holiday || isSun) ? "text-[#ff6b6b]" : isSat ? "text-blue-500" : "text-[#1A1A1A]"
+                          )}>
+                            {format(col, 'MM.dd')}
+                          </span>
 
-                       {/* Weekday (approx 75% from left) */}
-                       <div className="absolute right-[15%] translate-x-1/2">
-                         <span className={cn(
-                           "text-[12px] font-bold",
-                           (holiday || isSun) ? "text-[#ff6b6b]/80" : isSat ? "text-blue-400" : "text-slate-400"
-                         )}>
-                           {format(col, 'EEE', { locale: ko })}
-                         </span>
+                          {/* 공휴일 (70% R) */}
+                          {holiday && (
+                            <div className="absolute left-[70%] -translate-x-1/2">
+                              <span className="px-1.5 py-0.5 bg-[#ff6b6b]/5 text-[#ff6b6b] text-[9px] font-bold rounded-md border border-[#ff6b6b]/20 whitespace-nowrap">
+                                {holiday.name}
+                              </span>
+                            </div>
+                          )}
+                       </div>
+
+                       {/* Mobile Layout: Date top, Weekday/Holiday bottom */}
+                       <div className="md:hidden flex flex-col items-center justify-center gap-0.5">
+                          <span className={cn(
+                            "text-[13px] font-extrabold tracking-tight",
+                            (holiday || isSun) ? "text-[#ff6b6b]" : isSat ? "text-blue-500" : "text-[#1A1A1A]"
+                          )}>
+                            {format(col, 'MM.dd')}
+                          </span>
+                          <div className="flex items-center justify-center">
+                            {holiday ? (
+                              <span className="px-1 py-0.5 bg-[#ff6b6b]/5 text-[#ff6b6b] text-[8px] font-bold rounded-md border border-[#ff6b6b]/20 whitespace-nowrap">
+                                {holiday.name}
+                              </span>
+                            ) : (
+                              <span className={cn(
+                                "text-[9px] font-bold",
+                                isSun ? "text-[#ff6b6b]/80" : isSat ? "text-blue-400" : "text-slate-400"
+                              )}>
+                                {format(col, 'EEE', { locale: ko })}
+                              </span>
+                            )}
+                          </div>
                        </div>
                     </div>
                   ) : (
-                    <span className="text-[14px] font-bold text-black truncate max-w-full px-2">
+                    <span className="text-[12px] md:text-[14px] font-bold text-black truncate max-w-full px-2">
                        {(col as Room).name}
                     </span>
                   )}
@@ -404,41 +559,54 @@ export default function WeeklyView({
           </div>
 
           {/* Time Slots & Bookings Area */}
-          <div className="flex-1 relative pt-6">
+          <div className="flex-1 relative scrollbar-hide pt-[20px]">
             {hours.map((hour) => (
               <div 
                 key={hour} 
                 className="grid h-20 border-b border-[#EEEEEE] last:border-b-0 relative"
-                style={{ gridTemplateColumns: `80px repeat(${columns.length}, 1fr)` }}
+                style={{ gridTemplateColumns: `var(--time-col-width) repeat(${displayColumns.length}, 1fr)` }}
               >
                 {/* 30-min helper line (dashed) */}
-                <div className="absolute top-1/2 left-20 right-0 border-t border-dashed border-[#F0F0F0] pointer-events-none" />
+                <div className="absolute top-1/2 left-[var(--time-col-width)] right-0 border-t border-dashed border-[#F0F0F0] pointer-events-none" />
+                <style dangerouslySetInnerHTML={{ __html: `
+                  .hour-label { top: 0 !important; }
+                  @media (max-width: 1024px) { 
+                    .time-col-box { border-right: 1px solid #DDDDDD !important; background: transparent !important; }
+                    .hour-label { background: transparent !important; }
+                  }
+                `}} />
 
                 {/* Time Label */}
-                <div className="shrink-0 border-r border-[#EEEEEE] flex items-start justify-center bg-white transition-colors z-10">
-                  <span className="text-[10px] font-bold text-slate-400 -translate-y-1/2 bg-white px-1">
+                <div className="shrink-0 border-r border-[#EEEEEE] flex items-start justify-center bg-white transition-colors z-10 time-col-box">
+                  <span className="text-[10px] md:text-[12px] font-bold text-slate-400 -translate-y-1/2 bg-white px-0.5 md:px-1 hour-label">
                     {format(setHours(new Date(), hour), 'HH:00')}
                   </span>
                 </div>
 
                 {/* Columns */}
-                {columns.map((col) => {
+                {displayColumns.map((col) => {
                   const isDay = col instanceof Date;
                   const day = isDay ? col : selectedDate;
                   const roomId = isDay ? undefined : (col as Room).id;
                   const holiday = getHolidayForDay(day);
+                  const isPlaceholder = (col as any).isPlaceholder;
                   
                   return (
                     <div 
                       key={isDay ? `${day}-${hour}` : `${(col as Room).id}-${hour}`} 
                       className={cn(
-                        "border-r border-[#EEEEEE] last:border-r-0 relative hover:bg-black/[0.01] transition-colors cursor-pointer",
-                        holiday && "bg-rose-50/20"
+                        "border-r border-[#EEEEEE] last:border-r-0 relative hover:bg-black/[0.01] transition-colors cursor-pointer px-2.5",
+                        holiday && "bg-rose-50/20",
+                        isPlaceholder && "bg-[#f9f9f9]"
                       )}
                     >
-                      {/* Clickable regions for 30m increments */}
-                      <div className="h-1/2 w-full hover:bg-black/[0.02]" onClick={(e) => { e.stopPropagation(); onAddBooking(day, hour, 0, roomId); }} />
-                      <div className="h-1/2 w-full hover:bg-black/[0.02]" onClick={(e) => { e.stopPropagation(); onAddBooking(day, hour, 30, roomId); }} />
+                      {!isPlaceholder && (
+                        <>
+                          {/* Clickable regions for 30m increments */}
+                          <div className="h-1/2 w-full hover:bg-black/[0.02]" onClick={(e) => { e.stopPropagation(); onAddBooking(day, hour, 0, roomId); }} />
+                          <div className="h-1/2 w-full hover:bg-black/[0.02]" onClick={(e) => { e.stopPropagation(); onAddBooking(day, hour, 30, roomId); }} />
+                        </>
+                      )}
                     </div>
                   );
                 })}
@@ -449,14 +617,14 @@ export default function WeeklyView({
             {isNowInGrid && (
               <div 
                 className="absolute left-0 right-0 z-40 pointer-events-none"
-                style={{ top: `${timeLineTop}px`, transition: 'top 0.3s ease' }}
+                style={{ top: `${timeLineTop + 20}px`, transition: 'top 0.3s ease' }}
               >
                 <div 
                   className="grid"
-                  style={{ gridTemplateColumns: `80px 1fr` }}
+                  style={{ gridTemplateColumns: `var(--time-col-width) 1fr` }}
                 >
                   <div className="flex justify-end items-center pr-2 h-0">
-                    <span className="bg-[#ff6b6b] text-white text-[10px] font-black px-1.5 py-0.5 shadow-md whitespace-nowrap rounded-sm leading-none flex items-center justify-center">
+                    <span className="bg-[#ff6b6b] text-white text-[10px] md:text-[12px] font-black px-1 md:px-1.5 py-0.5 shadow-md whitespace-nowrap rounded-sm leading-none flex items-center justify-center">
                       {format(now, 'HH:mm')}
                     </span>
                   </div>
@@ -470,12 +638,14 @@ export default function WeeklyView({
             {/* Bookings Layer */}
             <div 
               className="absolute inset-0 pointer-events-none grid"
-              style={{ gridTemplateColumns: `80px repeat(${columns.length}, 1fr)` }}
+              style={{ gridTemplateColumns: `var(--time-col-width) repeat(${displayColumns.length}, 1fr)` }}
             >
                <div className="pointer-events-none" /> {/* Spacer for time column */}
-               {columns.map((_, colIdx) => {
-                 const col = columns[colIdx];
+               {displayColumns.map((_, colIdx) => {
+                 const col = displayColumns[colIdx];
                  const isDayCol = col instanceof Date;
+
+                 if ((col as any).isPlaceholder) return <div key={colIdx} />;
 
                  const columnBookings = bookings.filter(booking => {
                    // If this booking is being dragged, it belongs to its "current" drag column
@@ -510,7 +680,7 @@ export default function WeeklyView({
                           const top = ((startMins - gridStartMins) / 60) * 80;
                           const height = (differenceInMinutes(displayEnd, displayStart) / 60) * 80;
 
-                          const layout = layouts.get(booking.id)!;
+                          const layout = layouts.get(booking.id) || { width: '90%', left: '5%', index: 0, groupSize: 1 };
                           const bookingRoom = rooms.find(r => r.id === booking.roomId);
                           const themeColor = bookingRoom?.color || 'bg-[#cbd098]';
                           const hexColor = themeColor.match(/\[(.*?)\]/)?.[1] || '#cbd098';
@@ -520,6 +690,14 @@ export default function WeeklyView({
                               layout={!isDragging}
                               layoutId={isDragging ? undefined : `booking-${booking.id}`}
                               key={booking.id}
+                              transition={{
+                                layout: { 
+                                  type: "tween", 
+                                  ease: [0.85, 0, 0.15, 1], // Fast start, slow middle, fast end (S-curve)
+                                  duration: 0.5 
+                                },
+                                opacity: { duration: 0.2 }
+                              }}
                               onMouseDown={(e) => {
                                 e.stopPropagation();
                                 isDraggingRef.current = false;
@@ -547,19 +725,20 @@ export default function WeeklyView({
                                 onEditBooking(booking);
                               }}
                               className={cn(
-                                "absolute px-3 py-2 pointer-events-auto cursor-grab active:cursor-grabbing flex flex-col justify-between rounded-xl shadow-sm font-['Pretendard'] group",
-                                !isDragging && "transition-all duration-200",
+                                "absolute px-1 md:px-3 py-1 md:py-2 pointer-events-auto cursor-grab active:cursor-grabbing flex flex-col justify-between rounded-lg md:rounded-xl shadow-sm font-['Pretendard'] group",
                                 isDragging && "z-50 shadow-xl opacity-95 scale-[1.03] cursor-grabbing"
                               )}
                               style={{
-                                left: layout.left,
-                                width: layout.width,
-                                top: `${top + 24}px`, // Added offset for pt-6
-                                height: `${height - 2}px`, // Minor adjustment for gap
+                                left: isMobile ? `calc(${layout.index * (100 / layout.groupSize)}% + 1px)` : layout.left,
+                                width: isMobile ? `calc(${100 / layout.groupSize}% - 2px)` : layout.width,
+                                top: `${top + 20}px`, 
+                                height: `${height - 2}px`, 
                                 zIndex: isDragging ? 100 : (10 + layout.index),
                                 background: `linear-gradient(135deg, ${hexColor} 0%, color-mix(in srgb, ${hexColor}, white 20%) 100%)`,
                                 color: 'white',
-                                transition: isDragging ? 'none' : undefined
+                                transition: isDragging ? 'none' : undefined,
+                                paddingLeft: isMobile ? '1px' : undefined,
+                                paddingRight: isMobile ? '1px' : undefined
                               }}
                             >
                               {/* Resize Handles */}
@@ -612,8 +791,8 @@ export default function WeeklyView({
                                 }}
                               />
 
-                              <div className="flex flex-col overflow-hidden h-full pointer-events-none">
-                                {layout.groupSize < 6 ? (
+                              <div className="hidden md:flex flex-col overflow-hidden h-full pointer-events-none">
+                                {layout.groupSize <= 6 ? (
                                   <>
                                     <h4 className="text-[15px] font-bold truncate tracking-tight">{booking.title}</h4>
                                     {layout.groupSize >= 3 ? (
