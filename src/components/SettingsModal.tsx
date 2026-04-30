@@ -1,7 +1,8 @@
 import React from 'react';
 import { X, Plus, Trash2, MapPin, Calendar, GripVertical, Check, Pencil, ChevronDown } from 'lucide-react';
 import { Room, Holiday } from '../types';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
+import { ko } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
 import { ROOM_THEME_COLORS } from '../constants';
 import {
@@ -78,13 +79,13 @@ function SortableRoomItem({ room, onUpdate, onRemove, isEditMode }: SortableRoom
           onChange={(e) => onUpdate(room.id, { name: e.target.value })}
         />
         
-        <div className="flex items-center gap-3 shrink-0 pr-[25px]">
+        <div className="flex items-center gap-3 shrink-0 pr-[55px]">
           <div className="flex items-center gap-1">
             <input 
               disabled={!isEditMode}
               type="number" 
               placeholder="Cap"
-              className="w-8 bg-transparent border-none focus:ring-0 p-0 text-[12px] font-bold text-slate-400 text-right placeholder:text-slate-200 disabled:opacity-50"
+              className="w-8 translate-x-[5px] bg-transparent border-none focus:ring-0 p-0 text-[12px] font-bold text-slate-400 text-right placeholder:text-slate-200 disabled:opacity-50"
               value={room.capacity}
               onChange={(e) => onUpdate(room.id, { capacity: Number(e.target.value) })}
             />
@@ -135,7 +136,7 @@ function SortableRoomItem({ room, onUpdate, onRemove, isEditMode }: SortableRoom
         {isEditMode && (
           <button 
             onClick={() => onRemove(room.id)}
-            className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+            className="p-1.5 text-[#ff6b6b] hover:text-white hover:bg-[#ff6b6b] rounded-lg transition-all"
           >
             <Trash2 size={15} />
           </button>
@@ -374,32 +375,41 @@ export default function SettingsModal({
                 </DndContext>
               ) : (
                 customHolidays.map(holiday => (
-                  <div key={holiday.id} className="flex items-center gap-3 px-3 bg-white rounded-xl border border-slate-100 shadow-sm h-11 group">
-                    <input 
-                      disabled={!isEditMode}
-                      type="text" 
-                      placeholder="Holiday Name"
-                      className="flex-1 bg-transparent border-none focus:ring-0 p-0 text-[13px] font-bold placeholder:text-slate-200 disabled:text-slate-700"
-                      value={holiday.name}
-                      onChange={(e) => updateHoliday(holiday.id, { name: e.target.value })}
-                    />
-                    <div className="flex items-center shrink-0 pr-[15px]">
+                  <div key={holiday.id} className="flex items-center gap-2 px-2 bg-white rounded-xl border border-slate-100 shadow-sm h-11 group">
+                    <div className="w-5 shrink-0" />
+                    <div className="flex-1 flex items-center gap-3 pl-1 min-w-0">
                       <input 
                         disabled={!isEditMode}
-                        type="date" 
-                        className="bg-transparent border-none focus:ring-0 p-0 text-[11px] font-bold text-slate-400 disabled:opacity-50"
-                        value={format(holiday.date, 'yyyy-MM-dd')}
-                        onChange={(e) => updateHoliday(holiday.id, { date: new Date(e.target.value) })}
+                        type="text" 
+                        placeholder="Holiday Name"
+                        className="flex-1 bg-transparent border-none focus:ring-0 p-0 text-[13px] font-bold placeholder:text-slate-200 disabled:text-slate-700 truncate"
+                        value={holiday.name}
+                        onChange={(e) => updateHoliday(holiday.id, { name: e.target.value })}
                       />
-                      <span className="text-[11px] font-bold text-slate-400 ml-1">
-                        ({format(holiday.date, 'EEEEEE', { locale: ko })})
-                      </span>
+                      <div className="relative flex items-center shrink-0 pr-[55px]">
+                        <div className="flex items-center text-[11px] font-bold text-slate-400 whitespace-nowrap">
+                          {isValid(holiday.date) ? format(holiday.date, 'yyyy.MM.dd') : '날짜 선택'}
+                          {isValid(holiday.date) && <span className="ml-1">({format(holiday.date, 'EEEEEE', { locale: ko })})</span>}
+                        </div>
+                        <input 
+                          disabled={!isEditMode}
+                          type="date" 
+                          className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-auto"
+                          value={isValid(holiday.date) ? format(holiday.date, 'yyyy-MM-dd') : ''}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const d = new Date(e.target.value);
+                              if (isValid(d)) updateHoliday(holiday.id, { date: d });
+                            }
+                          }}
+                        />
+                      </div>
                     </div>
                     <div className={`w-7 shrink-0 flex items-center justify-center ${isEditMode ? '' : 'opacity-0 pointer-events-none'}`}>
                       {isEditMode && (
                         <button 
                           onClick={() => removeHoliday(holiday.id)}
-                          className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                          className="p-1.5 text-[#ff6b6b] hover:text-white hover:bg-[#ff6b6b] rounded-lg transition-all"
                         >
                           <Trash2 size={15} />
                         </button>
