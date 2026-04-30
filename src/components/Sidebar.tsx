@@ -14,7 +14,7 @@ import {
   isWithinInterval
 } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Settings, MapPin } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Settings, MapPin, Presentation } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Holiday, Room } from '../types';
 
@@ -54,7 +54,7 @@ export default function Sidebar({ selectedDate, onDateSelect, onOpenSettings, ho
     <aside className="w-72 bg-[#F9F9F9] border-r border-[#E5E5E5] h-full flex flex-col p-8 overflow-y-auto shrink-0 transition-colors">
       <div className="flex items-center gap-3 mb-10">
         <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-          <div className="w-3 h-3 bg-white rounded-sm"></div>
+          <Presentation size={20} className="text-white" strokeWidth={2.5} />
         </div>
         <h1 className="font-bold text-lg tracking-tighter text-[#1A1A1A]">AMC RoomBook</h1>
       </div>

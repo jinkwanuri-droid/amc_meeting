@@ -69,78 +69,75 @@ function SortableRoomItem({ room, onUpdate, onRemove, isEditMode }: SortableRoom
         {isEditMode && <GripVertical size={14} />}
       </div>
       
-      <div className="flex-1 flex items-center gap-3 pl-1 min-w-0">
-        <input 
-          disabled={!isEditMode}
-          type="text" 
-          placeholder="Room Name"
-          className="flex-1 bg-transparent border-none focus:ring-0 p-0 text-[13px] font-bold placeholder:text-slate-200 disabled:text-slate-700 truncate"
-          value={room.name}
-          onChange={(e) => onUpdate(room.id, { name: e.target.value })}
-        />
-        
-        <div className="flex items-center gap-3 shrink-0 pr-[55px]">
-          <div className="flex items-center gap-1">
-            <input 
-              disabled={!isEditMode}
-              type="number" 
-              placeholder="Cap"
-              className="w-8 translate-x-[5px] bg-transparent border-none focus:ring-0 p-0 text-[12px] font-bold text-slate-400 text-right placeholder:text-slate-200 disabled:opacity-50"
-              value={room.capacity}
-              onChange={(e) => onUpdate(room.id, { capacity: Number(e.target.value) })}
-            />
-            <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tighter">명</span>
-          </div>
+      <input 
+        disabled={!isEditMode}
+        type="text" 
+        placeholder="Room Name"
+        className="flex-1 bg-transparent border-none focus:ring-0 p-0 text-[13px] font-bold placeholder:text-slate-200 disabled:text-slate-700 truncate min-w-0"
+        value={room.name}
+        onChange={(e) => onUpdate(room.id, { name: e.target.value })}
+      />
+      
+      <div className="flex items-center justify-end gap-3 shrink-0 w-[120px]">
+        <div className="flex items-center gap-1">
+          <input 
+            disabled={!isEditMode}
+            type="number" 
+            placeholder="Cap"
+            className="w-8 bg-transparent border-none focus:ring-0 p-0 text-[12px] font-bold text-slate-400 text-right placeholder:text-slate-200 disabled:opacity-50"
+            value={room.capacity}
+            onChange={(e) => onUpdate(room.id, { capacity: Number(e.target.value) })}
+          />
+          <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tighter">명</span>
+        </div>
 
-          <div className="relative shrink-0" ref={dropdownRef}>
-            <button
-              type="button"
-              disabled={!isEditMode}
-              onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
-              className="w-5 h-5 rounded-full transition-all flex items-center justify-center hover:scale-105 disabled:hover:scale-100 shadow-sm"
-              style={{ backgroundColor: room.color?.match(/\[(.*?)\]/)?.[1] || '#cbd098' }}
-            >
-              {isEditMode && <ChevronDown size={10} className="text-white drop-shadow-sm" />}
-            </button>
+        <div className="relative shrink-0" ref={dropdownRef}>
+          <button
+            type="button"
+            disabled={!isEditMode}
+            onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
+            className="w-5 h-5 rounded-full transition-all flex items-center justify-center hover:scale-105 disabled:hover:scale-100 shadow-sm"
+            style={{ backgroundColor: room.color?.match(/\[(.*?)\]/)?.[1] || '#cbd098' }}
+          >
+            {isEditMode && <ChevronDown size={10} className="text-white drop-shadow-sm" />}
+          </button>
 
-            <AnimatePresence>
-              {isColorPickerOpen && isEditMode && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="absolute right-0 top-full mt-2 p-2 bg-white rounded-xl shadow-xl border border-slate-100 z-50 grid grid-cols-5 gap-1.5 w-[140px]"
-                >
-                  {ROOM_THEME_COLORS.map(color => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => {
-                        onUpdate(room.id, { color });
-                        setIsColorPickerOpen(false);
-                      }}
-                      className="w-5 h-5 rounded-full transition-all relative hover:scale-110 flex items-center justify-center shadow-sm"
-                      style={{ backgroundColor: color.match(/\[(.*?)\]/)?.[1] }}
-                    >
-                      {room.color === color && <Check size={8} className="text-white drop-shadow-sm" />}
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+          <AnimatePresence>
+            {isColorPickerOpen && isEditMode && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="absolute right-0 top-full mt-2 p-2 bg-white rounded-xl shadow-xl border border-slate-100 z-50 grid grid-cols-5 gap-1.5 w-[140px]"
+              >
+                {ROOM_THEME_COLORS.map(color => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => {
+                      onUpdate(room.id, { color });
+                      setIsColorPickerOpen(false);
+                    }}
+                    className="w-5 h-5 rounded-full transition-all relative hover:scale-110 flex items-center justify-center shadow-sm"
+                    style={{ backgroundColor: color.match(/\[(.*?)\]/)?.[1] }}
+                  >
+                    {room.color === color && <Check size={8} className="text-white drop-shadow-sm" />}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
-      <div className={`w-7 shrink-0 flex items-center justify-center ${isEditMode ? '' : 'opacity-0 pointer-events-none'}`}>
-        {isEditMode && (
-          <button 
-            onClick={() => onRemove(room.id)}
-            className="p-1.5 text-[#ff6b6b] hover:text-white hover:bg-[#ff6b6b] rounded-lg transition-all"
-          >
-            <Trash2 size={15} />
-          </button>
-        )}
+      <div className={`w-8 shrink-0 flex items-center justify-center transition-opacity ${isEditMode ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        <button 
+          onClick={() => onRemove(room.id)}
+          disabled={!isEditMode}
+          className="p-1.5 text-[#ff6b6b] hover:text-white hover:bg-[#ff6b6b] rounded-md transition-colors"
+        >
+          <Trash2 size={16} strokeWidth={2.5} />
+        </button>
       </div>
     </div>
   );
@@ -270,7 +267,7 @@ export default function SettingsModal({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
         <motion.div 
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -377,43 +374,43 @@ export default function SettingsModal({
                 customHolidays.map(holiday => (
                   <div key={holiday.id} className="flex items-center gap-2 px-2 bg-white rounded-xl border border-slate-100 shadow-sm h-11 group">
                     <div className="w-5 shrink-0" />
-                    <div className="flex-1 flex items-center gap-3 pl-1 min-w-0">
+                    
+                    <input 
+                      disabled={!isEditMode}
+                      type="text" 
+                      placeholder="Holiday Name"
+                      className="flex-1 bg-transparent border-none focus:ring-0 p-0 text-[13px] font-bold placeholder:text-slate-200 disabled:text-slate-700 truncate min-w-0"
+                      value={holiday.name}
+                      onChange={(e) => updateHoliday(holiday.id, { name: e.target.value })}
+                    />
+                    
+                    <div className="relative flex items-center justify-end shrink-0 w-[120px]">
+                      <div className="flex items-center justify-end text-[11px] font-bold text-slate-400 whitespace-nowrap min-w-[100px]">
+                        {isValid(holiday.date) ? format(holiday.date, 'yyyy.MM.dd') : '날짜 선택'}
+                        {isValid(holiday.date) && <span className="ml-1">({format(holiday.date, 'EEEEEE', { locale: ko })})</span>}
+                      </div>
                       <input 
                         disabled={!isEditMode}
-                        type="text" 
-                        placeholder="Holiday Name"
-                        className="flex-1 bg-transparent border-none focus:ring-0 p-0 text-[13px] font-bold placeholder:text-slate-200 disabled:text-slate-700 truncate"
-                        value={holiday.name}
-                        onChange={(e) => updateHoliday(holiday.id, { name: e.target.value })}
+                        type="date" 
+                        className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-auto"
+                        value={isValid(holiday.date) ? format(holiday.date, 'yyyy-MM-dd') : ''}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            const d = new Date(e.target.value);
+                            if (isValid(d)) updateHoliday(holiday.id, { date: d });
+                          }
+                        }}
                       />
-                      <div className="relative flex items-center shrink-0 pr-[55px]">
-                        <div className="flex items-center text-[11px] font-bold text-slate-400 whitespace-nowrap">
-                          {isValid(holiday.date) ? format(holiday.date, 'yyyy.MM.dd') : '날짜 선택'}
-                          {isValid(holiday.date) && <span className="ml-1">({format(holiday.date, 'EEEEEE', { locale: ko })})</span>}
-                        </div>
-                        <input 
-                          disabled={!isEditMode}
-                          type="date" 
-                          className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-auto"
-                          value={isValid(holiday.date) ? format(holiday.date, 'yyyy-MM-dd') : ''}
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              const d = new Date(e.target.value);
-                              if (isValid(d)) updateHoliday(holiday.id, { date: d });
-                            }
-                          }}
-                        />
-                      </div>
                     </div>
-                    <div className={`w-7 shrink-0 flex items-center justify-center ${isEditMode ? '' : 'opacity-0 pointer-events-none'}`}>
-                      {isEditMode && (
-                        <button 
-                          onClick={() => removeHoliday(holiday.id)}
-                          className="p-1.5 text-[#ff6b6b] hover:text-white hover:bg-[#ff6b6b] rounded-lg transition-all"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      )}
+                    
+                    <div className={`w-8 shrink-0 flex items-center justify-center transition-opacity ${isEditMode ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                      <button 
+                        onClick={() => removeHoliday(holiday.id)}
+                        disabled={!isEditMode}
+                        className="p-1.5 text-[#ff6b6b] hover:text-white hover:bg-[#ff6b6b] rounded-md transition-colors"
+                      >
+                        <Trash2 size={16} strokeWidth={2.5} />
+                      </button>
                     </div>
                   </div>
                 ))

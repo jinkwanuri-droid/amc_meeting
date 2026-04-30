@@ -82,12 +82,13 @@ export default function WeeklyView({
       if (!added) groups.push([booking]);
     });
 
-    const layouts = new Map<string, { width: string; left: string }>();
+    const layouts = new Map<string, { width: string; left: string; groupSize: number }>();
     groups.forEach(group => {
       group.forEach((booking, idx) => {
         layouts.set(booking.id, {
           width: `calc(${100 / group.length}% - 8px)`,
-          left: `calc(${(100 / group.length) * idx}% + 4px)`
+          left: `calc(${(100 / group.length) * idx}% + 4px)`,
+          groupSize: group.length
         });
       });
     });
@@ -101,7 +102,7 @@ export default function WeeklyView({
         <div className="flex items-center gap-8">
           <h2 className="text-lg font-bold text-[#1A1A1A] tracking-tight">
             {viewMode === 'week' ? (
-              <>{format(weekStart, 'M/d', { locale: ko })} — {format(addDays(weekStart, 4), 'M/d, yyyy', { locale: ko })}</>
+              <>{format(weekStart, 'yyyy.MM.dd')} - {format(addDays(weekStart, 4), 'MM.dd')}</>
             ) : (
               <>{format(selectedDate, 'yyyy. MM. dd', { locale: ko })}</>
             )}
@@ -133,8 +134,8 @@ export default function WeeklyView({
             <button 
               onClick={() => onViewModeChange('week')}
               className={cn(
-                "px-4 py-1 text-[10px] font-bold rounded transition-all",
-                viewMode === 'week' ? "bg-white shadow-sm text-black" : "text-slate-400 hover:text-slate-600"
+                "px-4 py-1 text-[12px] rounded transition-all",
+                viewMode === 'week' ? "bg-white shadow-sm text-black font-bold" : "text-slate-400 hover:text-slate-600 font-medium"
               )}
             >
               WEEKLY
@@ -142,8 +143,8 @@ export default function WeeklyView({
             <button 
               onClick={() => onViewModeChange('day')}
               className={cn(
-                "px-4 py-1 text-[10px] font-bold rounded transition-all",
-                viewMode === 'day' ? "bg-white shadow-sm text-black" : "text-slate-400 hover:text-slate-600"
+                "px-4 py-1 text-[12px] rounded transition-all",
+                viewMode === 'day' ? "bg-white shadow-sm text-black font-bold" : "text-slate-400 hover:text-slate-600 font-medium"
               )}
             >
               DAILY
@@ -164,7 +165,7 @@ export default function WeeklyView({
         <div className="min-w-[1000px] flex flex-col h-full">
           {/* Headers */}
           <div 
-            className="grid bg-white sticky top-0 z-30 border-b border-[#E5E5E5] h-[50px]"
+            className="grid bg-white sticky top-0 z-30 border-b border-[#E5E5E5] shrink-0 h-[50px]"
             style={{ gridTemplateColumns: `80px repeat(${columns.length}, 1fr)` }}
           >
             <div className="border-r border-[#EEEEEE]" />
@@ -187,7 +188,7 @@ export default function WeeklyView({
                        {/* Holiday (approx 25% from left) */}
                        {holiday && (
                          <div className="absolute left-[15%] -translate-x-1/2">
-                           <span className="px-1.5 py-0.5 bg-[#ff6b6b]/5 text-[#ff6b6b] text-[9px] font-bold rounded-md border border-[#ff6b6b]/20 whitespace-nowrap">
+                           <span className="px-1.5 py-0.5 bg-[#ff6b6b]/5 text-[#ff6b6b] text-[11px] font-bold rounded-md border border-[#ff6b6b]/20 whitespace-nowrap">
                              {holiday.name}
                            </span>
                          </div>
@@ -195,16 +196,16 @@ export default function WeeklyView({
 
                        {/* Date (Center) */}
                        <span className={cn(
-                         "text-[13px] font-extrabold tracking-tight",
+                         "text-[15px] font-extrabold tracking-tight",
                          (holiday || isSun) ? "text-[#ff6b6b]" : isSat ? "text-blue-500" : "text-[#1A1A1A]"
                        )}>
-                         {format(col, 'd')}
+                         {format(col, 'MM.dd')}
                        </span>
 
                        {/* Weekday (approx 75% from left) */}
                        <div className="absolute right-[15%] translate-x-1/2">
                          <span className={cn(
-                           "text-[10px] font-bold",
+                           "text-[12px] font-bold",
                            (holiday || isSun) ? "text-[#ff6b6b]/80" : isSat ? "text-blue-400" : "text-slate-400"
                          )}>
                            {format(col, 'EEE', { locale: ko })}
@@ -212,7 +213,7 @@ export default function WeeklyView({
                        </div>
                     </div>
                   ) : (
-                    <span className="text-[12px] font-bold text-black truncate max-w-full px-2">
+                    <span className="text-[14px] font-bold text-black truncate max-w-full px-2">
                        {(col as Room).name}
                     </span>
                   )}
@@ -324,24 +325,42 @@ export default function WeeklyView({
                                 onEditBooking(booking);
                               }}
                               className={cn(
-                                "absolute px-3 py-2 pointer-events-auto cursor-pointer flex flex-col justify-between transition-all hover:brightness-90 rounded-lg shadow-sm font-['Pretendard']"
+                                "absolute px-3 py-2 pointer-events-auto cursor-pointer flex flex-col justify-between transition-all hover:brightness-105 active:scale-[0.98] rounded-xl shadow-sm font-['Pretendard']"
                               )}
                               style={{
-                                left: layout.left,
-                                width: layout.width,
+                                left: `calc(${layout.left} + 2px)`,
+                                width: `calc(${layout.width} - 4px)`,
                                 top: `${top + 24}px`, // Added offset for pt-6
-                                height: `${height}px`,
+                                height: `${height - 2}px`, // Minor adjustment for gap
                                 zIndex: 10,
-                                backgroundColor: hexColor,
+                                background: `linear-gradient(135deg, ${hexColor} 0%, color-mix(in srgb, ${hexColor}, white 20%) 100%)`,
                                 color: 'white'
                               }}
                             >
-                              <div className="overflow-hidden">
-                                <h4 className="text-[11px] font-extrabold truncate leading-tight uppercase tracking-tight">{booking.title}</h4>
-                                <p className="text-[9px] mt-0.5 font-bold truncate opacity-80">{booking.organizer}</p>
-                              </div>
-                              <div className="flex items-center justify-between text-[9px] font-bold mt-1 opacity-80">
-                                  <span>{format(booking.startTime, 'HH:mm')} - {format(booking.endTime, 'HH:mm')}</span>
+                              <div className="flex flex-col overflow-hidden">
+                                <h4 className="text-[15px] font-bold truncate tracking-tight">{booking.title}</h4>
+                                {layout.groupSize >= 3 ? (
+                                  <>
+                                    <div className="text-[12px] mt-1 opacity-90 leading-[1.2]">
+                                        <div>{format(booking.startTime, 'HH:mm')}</div>
+                                        <div>-</div>
+                                        <div>{format(booking.endTime, 'HH:mm')}</div>
+                                    </div>
+                                    <div className="text-[12px] mt-1.5 opacity-90 leading-tight">
+                                      <div className="truncate">{booking.organizer}</div>
+                                      <div className="truncate">{bookingRoom ? bookingRoom.name : '삭제된 회의실'}</div>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="text-[13px] mt-1 opacity-90 truncate">
+                                        {format(booking.startTime, 'HH:mm')} - {format(booking.endTime, 'HH:mm')}
+                                    </div>
+                                    <p className="text-[13px] mt-0.5 opacity-90 truncate">
+                                      {booking.organizer} • {bookingRoom ? bookingRoom.name : '삭제된 회의실'}
+                                    </p>
+                                  </>
+                                )}
                               </div>
                             </motion.div>
                           );
