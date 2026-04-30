@@ -26,8 +26,8 @@ export default function App() {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
-    setIsLoading(true);
+  const fetchData = async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
     try {
       // 1. 회의실 가져오기
       const roomsRes = await fetch("/api/rooms");
@@ -173,7 +173,7 @@ export default function App() {
 
       if (!res.ok) throw new Error("Failed to save booking");
       
-      fetchData(); // 데이터 새로고침
+      fetchData(false); // 데이터 새로고침
       setIsModalOpen(false);
     } catch (error) {
       console.error('Error saving booking:', error);
@@ -186,7 +186,7 @@ export default function App() {
       const res = await fetch(`/api/bookings/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete booking");
       
-      fetchData();
+      fetchData(false);
       setIsModalOpen(false);
     } catch (error) {
       console.error('Error deleting booking:', error);
@@ -216,11 +216,11 @@ export default function App() {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `Sync failed: ${res.status}`);
       }
-      fetchData(); // 최종 데이터 동기화
+      fetchData(false); // 최종 데이터 동기화
     } catch (error: any) {
       console.error('Error updating rooms:', error);
       alert(`회의실 저장 중 오류가 발생했습니다: ${error.message}`);
-      fetchData(); // 실패 시 원래대로 복구
+      fetchData(false); // 실패 시 원래대로 복구
     }
   };
 
@@ -249,11 +249,11 @@ export default function App() {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `Holiday sync failed: ${res.status}`);
       }
-      fetchData();
+      fetchData(false);
     } catch (error: any) {
       console.error('Error updating holidays:', error);
       alert(`공휴일 저장 중 오류가 발생했습니다: ${error.message}`);
-      fetchData();
+      fetchData(false);
     }
   };
 

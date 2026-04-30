@@ -64,11 +64,9 @@ function SortableRoomItem({ room, onUpdate, onRemove, isEditMode }: SortableRoom
       style={style}
       className={`flex items-center gap-2 px-2 bg-white rounded-xl border border-slate-100 shadow-sm transition-all h-11 group ${isDragging ? 'shadow-lg ring-2 ring-black/5' : ''}`}
     >
-      {isEditMode && (
-        <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 transition-colors pl-1 shrink-0">
-          <GripVertical size={14} />
-        </div>
-      )}
+      <div className={`w-5 flex items-center justify-center shrink-0 ${isEditMode ? 'cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500' : 'opacity-0'}`} {...(isEditMode ? attributes : {})} {...(isEditMode ? listeners : {})}>
+        {isEditMode && <GripVertical size={14} />}
+      </div>
       
       <div className="flex-1 flex items-center gap-3 pl-1 min-w-0">
         <input 
@@ -80,63 +78,67 @@ function SortableRoomItem({ room, onUpdate, onRemove, isEditMode }: SortableRoom
           onChange={(e) => onUpdate(room.id, { name: e.target.value })}
         />
         
-        <div className="flex items-center gap-2 shrink-0">
-          <input 
-            disabled={!isEditMode}
-            type="number" 
-            placeholder="Cap"
-            className="w-8 bg-transparent border-none focus:ring-0 p-0 text-[12px] font-bold text-slate-400 text-right placeholder:text-slate-200 disabled:opacity-50"
-            value={room.capacity}
-            onChange={(e) => onUpdate(room.id, { capacity: Number(e.target.value) })}
-          />
-          <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tighter">명</span>
-        </div>
+        <div className="flex items-center gap-3 shrink-0 pr-1">
+          <div className="flex items-center gap-1">
+            <input 
+              disabled={!isEditMode}
+              type="number" 
+              placeholder="Cap"
+              className="w-8 bg-transparent border-none focus:ring-0 p-0 text-[12px] font-bold text-slate-400 text-right placeholder:text-slate-200 disabled:opacity-50"
+              value={room.capacity}
+              onChange={(e) => onUpdate(room.id, { capacity: Number(e.target.value) })}
+            />
+            <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tighter">명</span>
+          </div>
 
-        <div className="relative shrink-0" ref={dropdownRef}>
-          <button
-            type="button"
-            disabled={!isEditMode}
-            onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
-            className={`w-5 h-5 rounded-full ${room.color || 'bg-slate-200'} transition-all flex items-center justify-center hover:scale-105 disabled:hover:scale-100`}
-          >
-            {isEditMode && <ChevronDown size={10} className="text-white drop-shadow-sm" />}
-          </button>
+          <div className="relative shrink-0" ref={dropdownRef}>
+            <button
+              type="button"
+              disabled={!isEditMode}
+              onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
+              className={`w-5 h-5 rounded-full ${room.color || 'bg-slate-200'} transition-all flex items-center justify-center hover:scale-105 disabled:hover:scale-100`}
+            >
+              {isEditMode && <ChevronDown size={10} className="text-white drop-shadow-sm" />}
+            </button>
 
-          <AnimatePresence>
-            {isColorPickerOpen && isEditMode && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="absolute right-0 top-full mt-2 p-2 bg-white rounded-xl shadow-xl border border-slate-100 z-50 grid grid-cols-5 gap-1.5 w-[140px]"
-              >
-                {ROOM_THEME_COLORS.map(color => (
-                  <button
-                    key={color}
-                    type="button"
-                    onClick={() => {
-                      onUpdate(room.id, { color });
-                      setIsColorPickerOpen(false);
-                    }}
-                    className={`w-5 h-5 rounded-full ${color} transition-all relative hover:scale-110 flex items-center justify-center`}
-                  >
-                    {room.color === color && <Check size={8} className="text-white" />}
-                  </button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
+            <AnimatePresence>
+              {isColorPickerOpen && isEditMode && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute right-0 top-full mt-2 p-2 bg-white rounded-xl shadow-xl border border-slate-100 z-50 grid grid-cols-5 gap-1.5 w-[140px]"
+                >
+                  {ROOM_THEME_COLORS.map(color => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => {
+                        onUpdate(room.id, { color });
+                        setIsColorPickerOpen(false);
+                      }}
+                      className={`w-5 h-5 rounded-full ${color} transition-all relative hover:scale-110 flex items-center justify-center`}
+                    >
+                      {room.color === color && <Check size={8} className="text-white" />}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
-      {isEditMode && (
-        <button 
-          onClick={() => onRemove(room.id)}
-          className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-        >
-          <Trash2 size={15} />
-        </button>
-      )}
+      <div className={`w-7 shrink-0 flex items-center justify-center ${isEditMode ? '' : 'opacity-0 pointer-events-none'}`}>
+        {isEditMode && (
+          <button 
+            onClick={() => onRemove(room.id)}
+            className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+          >
+            <Trash2 size={15} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -376,14 +378,16 @@ export default function SettingsModal({
                       value={format(holiday.date, 'yyyy-MM-dd')}
                       onChange={(e) => updateHoliday(holiday.id, { date: new Date(e.target.value) })}
                     />
-                    {isEditMode && (
-                      <button 
-                        onClick={() => removeHoliday(holiday.id)}
-                        className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    )}
+                    <div className={`w-7 shrink-0 flex items-center justify-center ${isEditMode ? '' : 'opacity-0 pointer-events-none'}`}>
+                      {isEditMode && (
+                        <button 
+                          onClick={() => removeHoliday(holiday.id)}
+                          className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))
               )}
