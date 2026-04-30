@@ -133,13 +133,13 @@ export default function Sidebar({ selectedDate, onDateSelect, onOpenSettings, ho
 
       <div>
         <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-6">Conference Rooms</h3>
-        <div className="space-y-3">
+        <div className="space-y-2">
           {Array.isArray(rooms) && rooms.map((room) => (
-            <div key={room.id} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-[#E5E5E5] shadow-sm transition-all hover:shadow-md cursor-pointer group">
-              <div className={cn("w-2 h-2 rounded-full", room.color || 'bg-slate-300')}></div>
-              <div className="flex-1">
-                <p className="text-sm font-bold text-[#1A1A1A] truncate">{room.name || 'Unnamed Room'}</p>
-                <p className="text-[10px] text-slate-400 font-medium truncate">{room.capacity} seats</p>
+            <div key={room.id} className="flex items-center gap-3 px-3 py-2 bg-white rounded-xl border border-[#E5E5E5] shadow-sm transition-all hover:shadow-md cursor-pointer group font-['Pretendard']">
+              <div className={cn("w-2 h-2 rounded-full shrink-0", room.color || 'bg-slate-300')}></div>
+              <div className="flex-1 flex items-center justify-between min-w-0 gap-2">
+                <p className="text-[13px] font-bold text-[#1A1A1A] truncate">{room.name || 'Unnamed Room'}</p>
+                <p className="text-[11px] text-slate-400 font-medium whitespace-nowrap shrink-0">{room.capacity}인</p>
               </div>
             </div>
           ))}
