@@ -294,33 +294,17 @@ export default function WeeklyView({
           const localRoomIdx = uniqueRoomIds.indexOf(booking.roomId);
           
           if (clusterSize > 6) {
-            // [GRID MODE] - Proper Column Packing for perfect vertical alignment
-            const columns: Booking[][] = [];
-            const sortedByStartTime = [...cluster].sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
-            
-            sortedByStartTime.forEach(b => {
-              let placed = false;
-              for (const col of columns) {
-                // If this booking doesn't overlap with any in this column, place it
-                if (!col.some(cb => b.startTime < cb.endTime && b.endTime > cb.startTime)) {
-                  col.push(b);
-                  placed = true;
-                  break;
-                }
-              }
-              if (!placed) columns.push([b]);
-            });
-
-            const numCols = columns.length;
-            const colIndex = columns.findIndex(col => col.includes(booking));
-            const widthPct = 100 / numCols;
-            const leftPct = (colIndex / numCols) * 100;
+            // [GRID MODE] - Room-based Tracks for perfect vertical alignment
+            // Use the actual number of rooms defined in the system to create consistent tracks
+            const roomsCount = rooms.length || 4;
+            const widthPct = 100 / roomsCount;
+            const leftPct = roomIdx * widthPct;
 
             layouts.set(booking.id, {
               width: `calc(${widthPct}% - 4px)`,
               left: `calc(${leftPct}% + 2px)`,
-              index: colIndex,
-              groupSize: numCols
+              index: roomIdx,
+              groupSize: roomsCount
             });
           } else if (clusterSize === 1) {
             // [DYNAMIC FULL WIDTH]
