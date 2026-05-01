@@ -293,7 +293,11 @@ export default function WeeklyView({
           const roomIdx = rooms.findIndex(r => r.id === booking.roomId);
           const localRoomIdx = uniqueRoomIds.indexOf(booking.roomId);
           
-          if (clusterSize > 6) {
+          // Count only the bookings that strictly overlap with THIS specific booking
+          const overlappingList = cluster.filter(b => b.startTime < booking.endTime && b.endTime > booking.startTime);
+          const overlappingCount = overlappingList.length;
+          
+          if (overlappingCount > 6) {
             // [GRID MODE] - Room-based Tracks for perfect vertical alignment
             // Use the actual number of rooms defined in the system to create consistent tracks
             const roomsCount = rooms.length || 4;
@@ -319,10 +323,17 @@ export default function WeeklyView({
             const stagger = 48; // Increased from 42 to reduce overlap further
             const left = 12 + (localRoomIdx * stagger);
             
-            // Width: Slightly narrower to reduce overlap coverage
-            const baseWidth = (80 / Math.max(roomsInClusterCount, 1)) + 12;
+            // Calculate local overlapping size instead of global cluster rooms
+            const overlappingRoomsCount = new Set(overlappingList.map(b => b.roomId)).size;
             
-            const isLastInCluster = localRoomIdx === roomsInClusterCount - 1;
+            // Width: Slightly narrower to reduce overlap coverage
+            const baseWidth = (80 / Math.max(overlappingRoomsCount, 1)) + 12;
+            
+            // If it's the right-most room in the localized overlap, extend it
+            const localRoomIndices = Array.from(new Set(overlappingList.map(b => b.roomId))).map(id => uniqueRoomIds.indexOf(id));
+            const maxLocalRoomIdx = localRoomIndices.length > 0 ? Math.max(...localRoomIndices) : localRoomIdx;
+            const isLastInCluster = localRoomIdx === maxLocalRoomIdx;
+            
             const width = isLastInCluster 
               ? `calc(100% - ${left + 14}px)` 
               : `${Math.min(baseWidth, 55)}%`; 
@@ -331,7 +342,7 @@ export default function WeeklyView({
               width: width,
               left: `${left}px`,
               index: roomIdx,
-              groupSize: clusterSize
+              groupSize: Math.max(roomsInClusterCount, 1) // Prevent NaN on mobile
             });
           }
         });
@@ -775,7 +786,7 @@ export default function WeeklyView({
                                 }}
                               />
 
-                              <div className="hidden md:flex flex-col overflow-hidden h-full pointer-events-none">
+                              <div className={cn("flex flex-col overflow-hidden h-full pointer-events-none", isMobile ? "hidden" : "hidden md:flex")}>
                                 {layout.groupSize <= 6 ? (
                                   <>
                                     <h4 className="text-[15px] font-bold truncate tracking-tight">{booking.title}</h4>
