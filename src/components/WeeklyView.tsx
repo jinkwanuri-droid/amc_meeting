@@ -272,7 +272,7 @@ export default function WeeklyView({
             groupSize: roomsCount
           });
         } else if (cluster.length === 1) {
-          // [FULL WIDTH] - No overlap
+          // [FULL WIDTH] - No overlap at all
           layouts.set(booking.id, {
             width: 'calc(100% - 24px)',
             left: '12px',
@@ -280,21 +280,19 @@ export default function WeeklyView({
             groupSize: 1
           });
         } else {
-          // [CASCADE] - Uniform overlap effect for both Web & Mobile
-          // 10% less overlap -> greater spacing (stagger). Max stagger is 26%
-          const staggerPct = Math.min(26, 75 / Math.max(roomsInClusterCount, 1));
+          // [SIDE-BY-SIDE DYNAMIC] - Conflicting items share the width without overlapping
+          const colWidth = 100 / roomsInClusterCount;
+          const leftPct = localRoomIdx * colWidth;
           
-          const leftPct = 3 + (localRoomIdx * staggerPct);
-          const totalStaggerPct = (roomsInClusterCount - 1) * staggerPct;
-          
-          // Minimum 25% width ensures text readability
-          const widthPct = Math.max(96 - 3 - totalStaggerPct, 25); 
+          // Use small horizontal gaps (gutters) for better visual distinction
+          const gutter = 1; // 1% gutter
+          const widthPct = colWidth - (gutter * 2);
 
           layouts.set(booking.id, {
             width: `${widthPct}%`,
-            left: `${leftPct}%`,
+            left: `${leftPct + gutter}%`,
             index: roomIdx,
-            groupSize: Math.max(roomsInClusterCount, 1)
+            groupSize: roomsInClusterCount
           });
         }
       });
@@ -343,13 +341,35 @@ export default function WeeklyView({
 
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden select-none scrollbar-hide">
-      {/* Mobile Top Header (Logo) */}
-      <div className="lg:hidden h-14 bg-white border-b border-[#E5E5E5] px-6 flex items-center shrink-0">
+      {/* Mobile Top Header (Logo & View Toggle) */}
+      <div className="lg:hidden h-14 bg-white border-b border-[#E5E5E5] px-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 bg-black rounded-lg flex items-center justify-center">
             <Presentation size={18} className="text-white" strokeWidth={2.5} />
           </div>
           <h1 className="font-bold text-base tracking-tighter text-[#1A1A1A]">AMC RoomBook</h1>
+        </div>
+
+        {/* Mobile View Toggle */}
+        <div className="flex bg-gray-100 p-0.5 rounded-lg border border-[#E5E5E5]">
+          <button 
+            onClick={() => onViewModeChange('week')}
+            className={cn(
+              "px-3 py-1 text-[11px] rounded transition-all",
+              viewMode === 'week' ? "bg-white shadow-sm text-black font-bold" : "text-slate-400 font-medium"
+            )}
+          >
+            WEEKLY
+          </button>
+          <button 
+            onClick={() => onViewModeChange('day')}
+            className={cn(
+              "px-3 py-1 text-[11px] rounded transition-all",
+              viewMode === 'day' ? "bg-white shadow-sm text-black font-bold" : "text-slate-400 font-medium"
+            )}
+          >
+            DAILY
+          </button>
         </div>
       </div>
       {/* Header */}
