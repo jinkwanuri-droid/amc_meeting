@@ -108,7 +108,7 @@ function SortableRoomItem({ room, onUpdate, onRemove, isEditMode }: SortableRoom
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="absolute right-0 top-full mt-2 p-2 bg-white rounded-xl shadow-xl border border-slate-100 z-50 grid grid-cols-5 gap-1.5 w-[140px]"
+                className="absolute right-0 top-full mt-2 p-2 bg-white rounded-xl shadow-xl border border-slate-100 z-50 grid grid-cols-4 gap-2 w-[140px]"
               >
                 {ROOM_THEME_COLORS.map(color => (
                   <button

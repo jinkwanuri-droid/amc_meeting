@@ -11,16 +11,14 @@ export const ROOMS: Room[] = [
 ];
 
 export const ROOM_THEME_COLORS = [
-  'bg-[#ea8553]',
-  'bg-[#eec76b]',
-  'bg-[#a9be77]',
-  'bg-[#6fb293]',
-  'bg-[#4eaaa6]',
-  'bg-[#5d9db9]',
-  'bg-[#728fb4]',
-  'bg-[#b881b1]',
-  'bg-[#d386b7]',
-  'bg-[#dc6986]'
+  'bg-[#9FD0CD]',
+  'bg-[#AEBC9F]',
+  'bg-[#EEC5BF]',
+  'bg-[#BAD0DE]',
+  'bg-[#D6BFCF]',
+  'bg-[#E9DEAA]',
+  'bg-[#B6D1C0]',
+  'bg-[#E8D1B5]'
 ];
 
 export const BOOKING_COLORS = [

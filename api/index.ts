@@ -51,7 +51,7 @@ app.get("/api/bookings", async (req, res) => {
 app.post("/api/bookings", async (req, res) => {
   try {
     const b = req.body;
-    const { rows } = await sql`INSERT INTO bookings (title, room_id, start_time, end_time, organizer, description, color) VALUES (${b.title}, ${b.room_id}, ${b.start_time}, ${b.end_time}, ${b.organizer}, ${b.description}, ${b.color}) RETURNING *`;
+    const { rows } = await sql`INSERT INTO bookings (title, room_id, start_time, end_time, organizer, project_name, description, color) VALUES (${b.title}, ${b.room_id}, ${b.start_time}, ${b.end_time}, ${b.organizer}, ${b.project_name}, ${b.description}, ${b.color}) RETURNING *`;
     res.json(rows[0]);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
@@ -61,7 +61,7 @@ app.post("/api/bookings", async (req, res) => {
 app.put("/api/bookings/:id", async (req, res) => {
   try {
     const b = req.body;
-    await sql`UPDATE bookings SET title=${b.title}, room_id=${b.room_id}, start_time=${b.start_time}, end_time=${b.end_time}, organizer=${b.organizer}, description=${b.description}, color=${b.color} WHERE id=${req.params.id}`;
+    await sql`UPDATE bookings SET title=${b.title}, room_id=${b.room_id}, start_time=${b.start_time}, end_time=${b.end_time}, organizer=${b.organizer}, project_name=${b.project_name}, description=${b.description}, color=${b.color} WHERE id=${req.params.id}`;
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });

@@ -5,6 +5,7 @@ export interface Booking {
   startTime: Date;
   endTime: Date;
   organizer: string;
+  projectName?: string;
   description?: string;
   color: string;
 }

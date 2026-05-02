@@ -52,6 +52,7 @@ export default function App() {
           return {
             id: b.id,
             title: b.title,
+            projectName: b.project_name,
             roomId: b.room_id,
             startTime: parseDate(b.start_time),
             endTime: parseDate(b.end_time),
@@ -178,6 +179,7 @@ export default function App() {
     try {
       const dbPayload = {
         title: bookingData.title,
+        project_name: bookingData.projectName,
         room_id: bookingData.roomId,
         start_time: bookingData.startTime.toISOString(),
         end_time: bookingData.endTime.toISOString(),

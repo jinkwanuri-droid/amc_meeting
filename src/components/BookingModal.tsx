@@ -36,6 +36,7 @@ export default function BookingModal({
 }: BookingModalProps) {
   const [isEditing, setIsEditing] = React.useState(!initialBooking?.id);
   const [title, setTitle] = React.useState(initialBooking?.title || '');
+  const [projectName, setProjectName] = React.useState(initialBooking?.projectName || '');
   const [roomId, setRoomId] = React.useState(initialBooking?.roomId || (rooms.length > 0 ? rooms[0].id : ''));
   const [organizer, setOrganizer] = React.useState(initialBooking?.organizer || '');
   const [description, setDescription] = React.useState(initialBooking?.description || '');
@@ -83,6 +84,7 @@ export default function BookingModal({
   React.useEffect(() => {
     if (initialBooking) {
       setTitle(initialBooking.title || '');
+      setProjectName(initialBooking.projectName || '');
       setRoomId(initialBooking.roomId || (rooms.length > 0 ? rooms[0].id : ''));
       setOrganizer(initialBooking.organizer || '');
       setDescription(initialBooking.description || '');
@@ -183,6 +185,7 @@ export default function BookingModal({
       const result = await onSubmit({
         id: initialBooking?.id,
         title,
+        projectName,
         roomId,
         startTime: start,
         endTime: end,
@@ -292,26 +295,26 @@ export default function BookingModal({
               </motion.div>
             )}
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-widest pl-1">
-                회의 제목
-              </label>
-              <input
-                disabled={!isEditing}
-                autoFocus
-                required
-                type="text"
-                placeholder="회의 제목을 입력하세요"
-                className="w-full px-4 py-3 bg-[#F9F9F9] border border-[#E5E5E5] rounded-lg focus:outline-none focus:border-black transition-all text-sm font-bold text-[#1A1A1A] placeholder:text-gray-300 disabled:text-slate-700 disabled:opacity-80"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
+            {/* Row 1: Title (6.5) / Room (3.5) */}
+            <div className="flex gap-4">
+              <div className="w-[65%] space-y-1.5 min-w-0">
                 <label className="text-xs font-medium text-gray-500 uppercase tracking-widest pl-1">
-                  장소
+                  회의 제목
+                </label>
+                <input
+                  disabled={!isEditing}
+                  autoFocus
+                  required
+                  type="text"
+                  placeholder="회의 제목을 입력하세요"
+                  className="w-full px-4 py-3 bg-[#F9F9F9] border border-[#E5E5E5] rounded-lg focus:outline-none focus:border-black transition-all text-sm font-bold text-[#1A1A1A] placeholder:text-gray-300 disabled:text-slate-700 disabled:opacity-80"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </div>
+              <div className="w-[35%] space-y-1.5 min-w-0">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-widest pl-1">
+                  회의실
                 </label>
                 <div className="relative" ref={roomDropdownRef}>
                   <button
@@ -324,18 +327,18 @@ export default function BookingModal({
                       !isEditing && "opacity-100 cursor-not-allowed text-slate-700"
                     )}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 overflow-hidden">
                       <div className={cn(
                         "w-3 h-3 rounded-full shrink-0 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)]",
                         rooms.find(r => r.id === roomId)?.color || 'bg-slate-300'
                       )} />
                       <span className="truncate">
-                        {rooms.find(r => r.id === roomId)?.name || '삭제된 회의실'}
+                        {rooms.find(r => r.id === roomId)?.name || '실'}
                       </span>
                     </div>
                     {isEditing && (
-                      <ChevronDown size={16} className={cn(
-                        "text-gray-400 transition-transform",
+                      <ChevronDown size={14} className={cn(
+                        "text-gray-400 shrink-0 transition-transform",
                         isRoomDropdownOpen && "rotate-180"
                       )} />
                     )}
@@ -364,8 +367,8 @@ export default function BookingModal({
                             )}
                           >
                             <div className={cn("w-3 h-3 rounded-full shrink-0 shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)]", room.color)} />
-                            <span>{room.name}</span>
-                            {roomId === room.id && <Check size={14} className="ml-auto text-black" />}
+                            <span className="truncate">{room.name}</span>
+                            {roomId === room.id && <Check size={14} className="ml-auto text-black shrink-0" />}
                           </button>
                         ))}
                       </motion.div>
@@ -373,7 +376,24 @@ export default function BookingModal({
                   </AnimatePresence>
                 </div>
               </div>
-              <div className="space-y-1.5">
+            </div>
+            
+            {/* Row 2: Project (6.5) / Organizer (3.5) */}
+            <div className="flex gap-4">
+              <div className="w-[65%] space-y-1.5 min-w-0">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-widest pl-1">
+                  프로젝트명
+                </label>
+                <input
+                  disabled={!isEditing}
+                  type="text"
+                  placeholder="프로젝트명을 입력하세요"
+                  className="w-full px-4 py-3 bg-[#F9F9F9] border border-[#E5E5E5] rounded-lg focus:outline-none focus:border-black transition-all text-sm font-bold text-[#1A1A1A] placeholder:text-gray-300 disabled:text-slate-700 disabled:opacity-80"
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                />
+              </div>
+              <div className="w-[35%] space-y-1.5 min-w-0">
                 <label className="text-xs font-medium text-gray-500 uppercase tracking-widest pl-1">
                   예약자
                 </label>
@@ -381,14 +401,15 @@ export default function BookingModal({
                   disabled={!isEditing}
                   required
                   type="text"
-                  placeholder="예약자 성함"
-                  className="w-full px-4 py-3 bg-[#F9F9F9] border border-[#E5E5E5] rounded-lg focus:outline-none focus:border-black transition-all text-xs font-bold text-[#1A1A1A] placeholder:text-gray-300 disabled:text-slate-700 disabled:opacity-80"
+                  placeholder="성함"
+                  className="w-full px-4 py-3 bg-[#F9F9F9] border border-[#E5E5E5] rounded-lg focus:outline-none focus:border-black transition-all text-sm font-bold text-[#1A1A1A] placeholder:text-gray-300 disabled:text-slate-700 disabled:opacity-80"
                   value={organizer}
                   onChange={(e) => setOrganizer(e.target.value)}
                 />
               </div>
             </div>
 
+            {/* Row 3: Time */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-gray-500 uppercase tracking-widest pl-1">
                 예약 시간

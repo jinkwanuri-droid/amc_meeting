@@ -42,7 +42,15 @@ async function startServer() {
     }
     try {
       await sql`CREATE TABLE IF NOT EXISTS rooms (id TEXT PRIMARY KEY, name TEXT NOT NULL, color TEXT, capacity INTEGER, "order" INTEGER DEFAULT 0);`;
-      await sql`CREATE TABLE IF NOT EXISTS bookings (id SERIAL PRIMARY KEY, title TEXT NOT NULL, room_id TEXT NOT NULL, start_time TIMESTAMP WITH TIME ZONE NOT NULL, end_time TIMESTAMP WITH TIME ZONE NOT NULL, organizer TEXT, description TEXT, color TEXT);`;
+      await sql`CREATE TABLE IF NOT EXISTS bookings (id SERIAL PRIMARY KEY, title TEXT NOT NULL, room_id TEXT NOT NULL, start_time TIMESTAMP WITH TIME ZONE NOT NULL, end_time TIMESTAMP WITH TIME ZONE NOT NULL, organizer TEXT, project_name TEXT, description TEXT, color TEXT);`;
+      
+      // Migration: Add project_name if it doesn't exist
+      try {
+        await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS project_name TEXT;`;
+      } catch (err) {
+        console.warn("Migration notice: project_name column might already exist or table is empty.");
+      }
+
       await sql`CREATE TABLE IF NOT EXISTS holidays (id TEXT PRIMARY KEY, name TEXT NOT NULL, date DATE NOT NULL);`;
       console.log("✅ DB Initialization successful");
     } catch (e: any) {

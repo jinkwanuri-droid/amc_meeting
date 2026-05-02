@@ -217,137 +217,88 @@ export default function WeeklyView({
     const layouts = new Map<string, { width: string; left: string; index: number; groupSize: number }>();
     if (columnBookings.length === 0) return layouts;
     
-    if (isMobile) {
-      // [MOBILE VIEW] - Consistent lanes per room (Lane-based logic)
-      const roomsCount = rooms.length || 1;
-      const laneWidth = 100 / roomsCount;
-
-      const bookingsByRoom = new Map<string, Booking[]>();
-      columnBookings.forEach(b => {
-        const roomBookings = bookingsByRoom.get(b.roomId) || [];
-        roomBookings.push(b);
-        bookingsByRoom.set(b.roomId, roomBookings);
-      });
-
-      rooms.forEach((room, roomIdx) => {
-        const roomBookings = bookingsByRoom.get(room.id) || [];
-        if (roomBookings.length === 0) return;
-
-        const sorted = [...roomBookings].sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
-        const roomGroups: Booking[][] = [];
-        sorted.forEach(booking => {
-          let added = false;
-          for (const group of roomGroups) {
-            if (group.some(g => booking.startTime < g.endTime && booking.endTime > g.startTime)) {
-              group.push(booking);
-              added = true;
-              break;
-            }
-          }
-          if (!added) roomGroups.push([booking]);
-        });
-
-        roomGroups.forEach(group => {
-          const n = group.length;
-          group.forEach((booking, idx) => {
-            const laneLeft = laneWidth * roomIdx;
-            const cardWidthPercent = n > 1 ? (90 / n) : 92;
-            const gutter = (laneWidth * (100 - (cardWidthPercent * n)) / 2) / 100;
-            layouts.set(booking.id, {
-              width: `${laneWidth * (cardWidthPercent / 100)}%`,
-              left: `${laneLeft + (gutter) + (idx * laneWidth * cardWidthPercent / 100)}%`,
-              index: roomIdx,
-              groupSize: roomsCount
-            });
-          });
-        });
-      });
-    } else {
-      // [WEB VIEW] - Dynamic Cascading with Strong Room Alignment
-      const sorted = [...columnBookings].sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+    // 1. Sort bookings by start time
+    const sortedBookings = [...columnBookings].sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+    
+    // 2. Group into overlapping clusters correctly using graph connected components
+    const clusters: Booking[][] = [];
+    for (const booking of sortedBookings) {
+      const overlappingIndices: number[] = [];
+      for (let i = 0; i < clusters.length; i++) {
+        if (clusters[i].some(cb => booking.startTime < cb.endTime && booking.endTime > cb.startTime)) {
+          overlappingIndices.push(i);
+        }
+      }
       
-      const clusters: Booking[][] = [];
-      let currentCluster: Booking[] = [];
-      let clusterEnd = 0;
-      sorted.forEach(b => {
-        if (currentCluster.length === 0 || b.startTime.getTime() < clusterEnd) {
-          currentCluster.push(b);
-          clusterEnd = Math.max(clusterEnd, b.endTime.getTime());
+      if (overlappingIndices.length > 0) {
+        const primaryIdx = overlappingIndices[0];
+        clusters[primaryIdx].push(booking);
+        // Merge from the end to avoid shifting indices
+        for (let i = overlappingIndices.length - 1; i > 0; i--) {
+          const idxToMerge = overlappingIndices[i];
+          clusters[primaryIdx].push(...clusters[idxToMerge]);
+          clusters.splice(idxToMerge, 1);
+        }
+      } else {
+        clusters.push([booking]);
+      }
+    }
+
+    // 3. Layout each cluster securely
+    clusters.forEach(cluster => {
+      // Find all unique rooms in this interconnected cluster
+      const uniqueRoomIds = Array.from(new Set(cluster.map(b => b.roomId)))
+        .sort((a, b) => rooms.findIndex(r => r.id === a) - rooms.findIndex(r => r.id === b));
+        
+      const roomsInClusterCount = uniqueRoomIds.length;
+      
+      cluster.forEach(booking => {
+        const roomIdx = rooms.findIndex(r => r.id === booking.roomId);
+        const localRoomIdx = uniqueRoomIds.indexOf(booking.roomId);
+        
+        // Strictly overlapping count for extreme density scenarios
+        const overlappingCount = cluster.filter(b => b.startTime < booking.endTime && b.endTime > booking.startTime).length;
+        
+        if (overlappingCount > 6) {
+          // [GRID MODE] - Extreme density fallback
+          const roomsCount = rooms.length || 4;
+          const widthPct = 100 / roomsCount;
+          const leftPct = roomIdx * widthPct;
+
+          layouts.set(booking.id, {
+            width: `calc(${widthPct}% - 4px)`,
+            left: `calc(${leftPct}% + 2px)`,
+            index: roomIdx,
+            groupSize: roomsCount
+          });
+        } else if (cluster.length === 1) {
+          // [FULL WIDTH] - No overlap
+          layouts.set(booking.id, {
+            width: 'calc(100% - 24px)',
+            left: '12px',
+            index: roomIdx,
+            groupSize: 1
+          });
         } else {
-          clusters.push(currentCluster);
-          currentCluster = [b];
-          clusterEnd = b.endTime.getTime();
+          // [CASCADE] - Uniform overlap effect for both Web & Mobile
+          // 10% less overlap -> greater spacing (stagger). Max stagger is 26%
+          const staggerPct = Math.min(26, 75 / Math.max(roomsInClusterCount, 1));
+          
+          const leftPct = 3 + (localRoomIdx * staggerPct);
+          const totalStaggerPct = (roomsInClusterCount - 1) * staggerPct;
+          
+          // Minimum 25% width ensures text readability
+          const widthPct = Math.max(96 - 3 - totalStaggerPct, 25); 
+
+          layouts.set(booking.id, {
+            width: `${widthPct}%`,
+            left: `${leftPct}%`,
+            index: roomIdx,
+            groupSize: Math.max(roomsInClusterCount, 1)
+          });
         }
       });
-      if (currentCluster.length > 0) clusters.push(currentCluster);
-
-      clusters.forEach(cluster => {
-        const clusterSize = cluster.length;
-        
-        // Find unique rooms in this cluster for better distribution
-        const uniqueRoomIds = Array.from(new Set(cluster.map(b => b.roomId)))
-          .sort((a, b) => rooms.findIndex(r => r.id === a) - rooms.findIndex(r => r.id === b));
-        const roomsInClusterCount = uniqueRoomIds.length;
-
-        cluster.forEach(booking => {
-          const roomIdx = rooms.findIndex(r => r.id === booking.roomId);
-          const localRoomIdx = uniqueRoomIds.indexOf(booking.roomId);
-          
-          // Count only the bookings that strictly overlap with THIS specific booking
-          const overlappingList = cluster.filter(b => b.startTime < booking.endTime && b.endTime > booking.startTime);
-          const overlappingCount = overlappingList.length;
-          
-          if (overlappingCount > 6) {
-            // [GRID MODE] - Room-based Tracks for perfect vertical alignment
-            // Use the actual number of rooms defined in the system to create consistent tracks
-            const roomsCount = rooms.length || 4;
-            const widthPct = 100 / roomsCount;
-            const leftPct = roomIdx * widthPct;
-
-            layouts.set(booking.id, {
-              width: `calc(${widthPct}% - 4px)`,
-              left: `calc(${leftPct}% + 2px)`,
-              index: roomIdx,
-              groupSize: roomsCount
-            });
-          } else if (clusterSize === 1) {
-            // [DYNAMIC FULL WIDTH]
-            layouts.set(booking.id, {
-              width: 'calc(100% - 24px)',
-              left: '12px',
-              index: roomIdx,
-              groupSize: 1
-            });
-          } else {
-            // [INTERACTIVE CASCADE] - Reduced overlap even more (approx 5% more gap)
-            const stagger = 48; // Increased from 42 to reduce overlap further
-            const left = 12 + (localRoomIdx * stagger);
-            
-            // Calculate local overlapping size instead of global cluster rooms
-            const overlappingRoomsCount = new Set(overlappingList.map(b => b.roomId)).size;
-            
-            // Width: Slightly narrower to reduce overlap coverage
-            const baseWidth = (80 / Math.max(overlappingRoomsCount, 1)) + 12;
-            
-            // If it's the right-most room in the localized overlap, extend it
-            const localRoomIndices = Array.from(new Set(overlappingList.map(b => b.roomId))).map(id => uniqueRoomIds.indexOf(id));
-            const maxLocalRoomIdx = localRoomIndices.length > 0 ? Math.max(...localRoomIndices) : localRoomIdx;
-            const isLastInCluster = localRoomIdx === maxLocalRoomIdx;
-            
-            const width = isLastInCluster 
-              ? `calc(100% - ${left + 14}px)` 
-              : `${Math.min(baseWidth, 55)}%`; 
-
-            layouts.set(booking.id, {
-              width: width,
-              left: `${left}px`,
-              index: roomIdx,
-              groupSize: Math.max(roomsInClusterCount, 1) // Prevent NaN on mobile
-            });
-          }
-        });
-      });
-    }
+    });
 
     // Safety pass
     columnBookings.forEach(booking => {
@@ -360,6 +311,29 @@ export default function WeeklyView({
   };
 
   const [isMobile, setIsMobile] = React.useState(false);
+  
+  // Scroll to current time on mount
+  React.useEffect(() => {
+    const grid = document.getElementById('calendar-grid');
+    if (grid) {
+      const now = new Date();
+      const currentHour = now.getHours();
+      
+      // Check if current hour is within our grid display range
+      if (currentHour >= START_HOUR && currentHour <= END_HOUR) {
+        // Each hour is 80px, plus 20px padding at the top
+        const top = ((currentHour - START_HOUR) * 80) + 20;
+        // Center the hour in the grid container
+        const scrollPos = top - (grid.clientHeight / 2) + 40;
+        grid.scrollTo({ top: Math.max(0, scrollPos), behavior: 'smooth' });
+      } else {
+        // Default scroll to 9 AM if current time is outside grid
+        const scrollPos = ((9 - START_HOUR) * 80);
+        grid.scrollTo({ top: Math.max(0, scrollPos), behavior: 'smooth' });
+      }
+    }
+  }, []);
+
   React.useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 1024);
     checkMobile();
@@ -720,20 +694,25 @@ export default function WeeklyView({
                                 onEditBooking(booking);
                               }}
                               className={cn(
-                                "absolute px-1 md:px-3 py-1 md:py-2 pointer-events-auto cursor-grab active:cursor-grabbing flex flex-col justify-between rounded-lg md:rounded-xl shadow-sm font-['Pretendard'] group",
-                                isDragging && "z-50 shadow-xl opacity-95 scale-[1.03] cursor-grabbing"
+                                "absolute px-1 md:px-3 py-1 md:py-2 pointer-events-auto cursor-grab active:cursor-grabbing flex flex-col justify-between rounded-lg md:rounded-xl font-['Pretendard'] group transition-shadow",
+                                "shadow-[0_4px_12px_-2px_rgba(0,0,0,0.12),0_2px_8px_-1px_rgba(0,0,0,0.08)]",
+                                "border border-white/40",
+                                isDragging && "z-50 shadow-2xl ring-2 ring-white/50 opacity-95 scale-[1.03] cursor-grabbing",
+                                "text-[#4E5057] antialiased"
                               )}
                               style={{
-                                left: isMobile ? `calc(${layout.index * (100 / layout.groupSize)}% + 1px)` : layout.left,
-                                width: isMobile ? `calc(${100 / layout.groupSize}% - 2px)` : layout.width,
+                                left: layout.left,
+                                width: layout.width,
                                 top: `${top + 20}px`, 
                                 height: `${height - 2}px`, 
                                 zIndex: isDragging ? 100 : (10 + layout.index),
                                 background: `linear-gradient(135deg, ${hexColor} 0%, color-mix(in srgb, ${hexColor}, white 20%) 100%)`,
-                                color: 'white',
                                 transition: isDragging ? 'none' : undefined,
                                 paddingLeft: isMobile ? '1px' : undefined,
-                                paddingRight: isMobile ? '1px' : undefined
+                                paddingRight: isMobile ? '1px' : undefined,
+                                backfaceVisibility: 'hidden',
+                                WebkitFontSmoothing: 'antialiased',
+                                transform: isDragging ? 'scale(1.03) translateZ(0)' : 'translateZ(0)'
                               }}
                             >
                               {/* Resize Handles */}
@@ -786,39 +765,70 @@ export default function WeeklyView({
                                 }}
                               />
 
-                              <div className={cn("flex flex-col overflow-hidden h-full pointer-events-none", isMobile ? "hidden" : "hidden md:flex")}>
+                              <motion.div 
+                                layout 
+                                transition={{
+                                  layout: { type: "spring", stiffness: 500, damping: 40, mass: 1 }
+                                }}
+                                className={cn("flex flex-col overflow-hidden h-full pointer-events-none origin-top-left", isMobile ? "hidden" : "hidden md:flex")}
+                              >
                                 {layout.groupSize <= 6 ? (
-                                  <>
-                                    <h4 className="text-[15px] font-bold truncate tracking-tight">{booking.title}</h4>
-                                    {layout.groupSize >= 3 ? (
-                                      <>
-                                        <div className="text-[12px] mt-1 opacity-90 leading-[1.2]">
-                                            <div>{format(displayStart, 'HH:mm')}</div>
-                                            <div>-</div>
-                                            <div>{format(displayEnd, 'HH:mm')}</div>
-                                        </div>
-                                        <div className="text-[12px] mt-1.5 opacity-90 leading-tight">
-                                          <div className="truncate">{booking.organizer}</div>
-                                          <div className="truncate">{bookingRoom ? bookingRoom.name : '삭제된 회의실'}</div>
-                                        </div>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <div className="text-[13px] mt-1 opacity-90 truncate">
+                                  <div className="flex flex-col h-full">
+                                    <div className="flex-1 overflow-hidden">
+                                      <motion.h4 
+                                        layout="position" 
+                                        transition={{ duration: 0.15 }}
+                                        className="text-[14px] font-bold truncate tracking-tight text-[#4E5057]"
+                                      >
+                                        {booking.title}
+                                      </motion.h4>
+                                      {booking.projectName && (
+                                        <motion.div 
+                                          layout="position"
+                                          transition={{ duration: 0.15 }}
+                                          className="text-[11px] opacity-90 truncate font-semibold text-[#4E5057]/90"
+                                        >
+                                          [{booking.projectName}]
+                                        </motion.div>
+                                      )}
+                                      
+                                      {/* Only show organizer if duration > 1 hour */}
+                                      {((booking.endTime.getTime() - booking.startTime.getTime()) / (1000 * 60 * 60)) > 1 && (
+                                        <motion.div 
+                                          layout="position"
+                                          transition={{ duration: 0.15 }}
+                                          className="text-[11px] mt-0.5 opacity-80 truncate font-medium text-[#4E5057]/80"
+                                        >
+                                          {booking.organizer}
+                                        </motion.div>
+                                      )}
+                                    </div>
+
+                                    {/* Bottom details with divider, only if duration > 1 hour */}
+                                    {((booking.endTime.getTime() - booking.startTime.getTime()) / (1000 * 60 * 60)) > 1 && (
+                                      <motion.div 
+                                        layout="position"
+                                        transition={{ duration: 0.15 }}
+                                        className="mt-auto shrink-0"
+                                      >
+                                        <div className="h-[1px] bg-[#4E5057]/15 w-full my-1.5" />
+                                        <div className="text-[11px] leading-[1.3] opacity-90 pb-0.5 text-[#4E5057]">
+                                          <div className="font-bold">
                                             {format(displayStart, 'HH:mm')} - {format(displayEnd, 'HH:mm')}
+                                          </div>
+                                          <div className="truncate opacity-80 font-medium">
+                                            {bookingRoom ? bookingRoom.name : '회의실'}
+                                          </div>
                                         </div>
-                                        <p className="text-[13px] mt-0.5 opacity-90 truncate">
-                                          {booking.organizer} • {bookingRoom ? bookingRoom.name : '삭제된 회의실'}
-                                        </p>
-                                      </>
+                                      </motion.div>
                                     )}
-                                  </>
+                                  </div>
                                 ) : (
                                   <div className="flex flex-col h-full justify-center items-center opacity-40">
-                                    {/* Optional: Add a small icon or nothing at all as per request */}
+                                    {/* Narrow tracks show nothing or minimal icon */}
                                   </div>
                                 )}
-                              </div>
+                              </motion.div>
                             </motion.div>
                           );
                       })}
