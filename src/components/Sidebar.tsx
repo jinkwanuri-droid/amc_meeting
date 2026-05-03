@@ -51,7 +51,7 @@ export default function Sidebar({ selectedDate, onDateSelect, onOpenSettings, ho
   const roomColors = ['bg-blue-500', 'bg-orange-400', 'bg-emerald-500', 'bg-rose-500', 'bg-amber-500', 'bg-indigo-500'];
 
   return (
-    <aside className="w-72 bg-[#F9F9F9] border-r border-[#E5E5E5] h-full flex flex-col p-8 overflow-y-auto shrink-0 transition-colors">
+    <aside className="w-72 bg-[#F9F9F9] border-r border-[#E5E5E5] h-full flex flex-col p-8 pt-[max(2rem,5vh)] overflow-y-auto shrink-0 transition-colors">
       <div className="flex items-center gap-3 mb-10">
         <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
           <Presentation size={20} className="text-white" strokeWidth={2.5} />

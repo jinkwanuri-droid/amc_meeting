@@ -342,7 +342,7 @@ export default function WeeklyView({
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden select-none scrollbar-hide">
       {/* Mobile Top Header (Logo & View Toggle) */}
-      <div className="lg:hidden h-14 bg-white border-b border-[#E5E5E5] px-4 flex items-center justify-between shrink-0">
+      <div className="md:hidden h-[calc(56px+5vh)] pt-[5vh] bg-white border-b border-[#E5E5E5] px-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 bg-black rounded-lg flex items-center justify-center">
             <Presentation size={18} className="text-white" strokeWidth={2.5} />
@@ -350,7 +350,7 @@ export default function WeeklyView({
           <h1 className="font-bold text-base tracking-tighter text-[#1A1A1A]">AMC RoomBook</h1>
         </div>
 
-        {/* Mobile View Toggle */}
+        {/* Mobile View Toggle - Only visible on smallest screens */}
         <div className="flex bg-gray-100 p-0.5 rounded-lg border border-[#E5E5E5]">
           <button 
             onClick={() => onViewModeChange('week')}
@@ -373,7 +373,7 @@ export default function WeeklyView({
         </div>
       </div>
       {/* Header */}
-      <header className="h-16 bg-white border-b border-[#E5E5E5] px-4 md:px-8 flex items-center justify-between shrink-0 relative">
+      <header className="h-16 md:h-[calc(64px+5vh)] md:pt-[5vh] bg-white border-b border-[#E5E5E5] px-4 md:px-8 flex items-center justify-between shrink-0 relative">
         {/* Left: Date Range (Desktop & Mobile) */}
         <div className="flex items-center gap-2 md:gap-8 overflow-hidden min-w-[100px] md:min-w-0">
           <h2 className="text-sm md:text-lg font-bold text-[#1A1A1A] tracking-tight w-auto md:w-[200px] truncate shrink-0">
@@ -787,17 +787,17 @@ export default function WeeklyView({
 
                               <motion.div 
                                 layout 
-                                transition={{
+                                transition={isDragging ? { duration: 0 } : {
                                   layout: { type: "spring", stiffness: 500, damping: 40, mass: 1 }
                                 }}
-                                className={cn("flex flex-col overflow-hidden h-full pointer-events-none origin-top-left", isMobile ? "hidden" : "hidden md:flex")}
+                                className={cn("flex flex-col overflow-hidden h-full pointer-events-none origin-top-left")}
                               >
                                 {layout.groupSize <= 6 ? (
                                   <div className="flex flex-col h-full">
                                     <div className="flex-1 overflow-hidden">
                                       <motion.h4 
                                         layout="position" 
-                                        transition={{ duration: 0.15 }}
+                                        transition={isDragging ? { duration: 0 } : { duration: 0.15 }}
                                         className="text-[14px] font-bold truncate tracking-tight text-[#4E5057]"
                                       >
                                         {booking.title}
@@ -805,7 +805,7 @@ export default function WeeklyView({
                                       {booking.projectName && (
                                         <motion.div 
                                           layout="position"
-                                          transition={{ duration: 0.15 }}
+                                          transition={isDragging ? { duration: 0 } : { duration: 0.15 }}
                                           className="text-[11px] opacity-90 truncate font-semibold text-[#4E5057]/90"
                                         >
                                           [{booking.projectName}]
@@ -816,7 +816,7 @@ export default function WeeklyView({
                                       {((booking.endTime.getTime() - booking.startTime.getTime()) / (1000 * 60 * 60)) > 1 && (
                                         <motion.div 
                                           layout="position"
-                                          transition={{ duration: 0.15 }}
+                                          transition={isDragging ? { duration: 0 } : { duration: 0.15 }}
                                           className="text-[11px] mt-0.5 opacity-80 truncate font-medium text-[#4E5057]/80"
                                         >
                                           {booking.organizer}
@@ -828,7 +828,7 @@ export default function WeeklyView({
                                     {((booking.endTime.getTime() - booking.startTime.getTime()) / (1000 * 60 * 60)) > 1 && (
                                       <motion.div 
                                         layout="position"
-                                        transition={{ duration: 0.15 }}
+                                        transition={isDragging ? { duration: 0 } : { duration: 0.15 }}
                                         className="mt-auto shrink-0"
                                       >
                                         <div className="h-[1px] bg-[#4E5057]/15 w-full my-1.5" />

@@ -306,30 +306,34 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen w-full bg-white font-sans text-slate-900 overflow-hidden">
-      <div className="hidden lg:block h-full">
-        <Sidebar 
-          selectedDate={selectedDate} 
-          onDateSelect={setSelectedDate} 
-          onOpenSettings={() => setIsSettingsOpen(true)}
-          holidays={holidays}
-          rooms={rooms}
-          viewMode={viewMode}
-        />
+    <div className="flex flex-col h-screen w-full bg-white font-sans text-slate-900 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden">
+        <div className="hidden md:block h-full shrink-0">
+          <Sidebar 
+            selectedDate={selectedDate} 
+            onDateSelect={setSelectedDate} 
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            holidays={holidays}
+            rooms={rooms}
+            viewMode={viewMode}
+          />
+        </div>
+        
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <WeeklyView 
+            selectedDate={selectedDate}
+            bookings={bookings}
+            holidays={holidays}
+            rooms={rooms}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            onAddBooking={handleAddBooking}
+            onEditBooking={handleEditBooking}
+            onNavigate={setSelectedDate}
+            onUpdateBooking={handleSubmitBooking}
+          />
+        </div>
       </div>
-      
-      <WeeklyView 
-        selectedDate={selectedDate}
-        bookings={bookings}
-        holidays={holidays}
-        rooms={rooms}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        onAddBooking={handleAddBooking}
-        onEditBooking={handleEditBooking}
-        onNavigate={setSelectedDate}
-        onUpdateBooking={handleSubmitBooking}
-      />
 
       <BookingModal
         isOpen={isModalOpen}
