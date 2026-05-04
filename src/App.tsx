@@ -24,6 +24,8 @@ export default function App() {
   // 데이터 초기 로딩
   React.useEffect(() => {
     fetchData();
+    // Log visit
+    fetch("/api/visit", { method: "POST" }).catch(e => console.warn("Failed to log visit", e));
   }, []);
 
   const fetchData = async (showLoading = true) => {
@@ -316,6 +318,10 @@ export default function App() {
             holidays={holidays}
             rooms={rooms}
             viewMode={viewMode}
+            onRoomBooking={(roomId) => {
+              const today = new Date();
+              handleAddBooking(today, today.getHours(), 0, roomId);
+            }}
           />
         </div>
         
@@ -349,6 +355,7 @@ export default function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         rooms={rooms}
+        bookings={bookings}
         holidays={holidays}
         onUpdateRooms={handleUpdateRooms}
         onUpdateHolidays={handleUpdateHolidays}

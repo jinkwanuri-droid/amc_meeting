@@ -7,9 +7,18 @@ import {
   isBefore,
   isAfter,
   isEqual,
-  startOfDay
+  startOfDay,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  eachDayOfInterval,
+  isSameMonth,
+  isSameDay,
+  addMonths,
+  subMonths
 } from 'date-fns';
-import { X, Calendar, Clock, User, MessageSquare, Trash2, MapPin, Pencil, Check, ChevronDown } from 'lucide-react';
+import { X, Calendar, Clock, User, MessageSquare, Trash2, MapPin, Pencil, Check, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Booking, Room } from '../types';
 import { ROOMS, BOOKING_COLORS, START_HOUR, END_HOUR } from '../constants';
 import { cn } from '../lib/utils';
@@ -23,6 +32,71 @@ interface BookingModalProps {
   initialBooking?: Partial<Booking>;
   selectedDate: Date;
   rooms: Room[];
+}
+
+function CustomMiniCalendar({ selectedDate, onSelect }: { selectedDate: Date; onSelect: (date: Date) => void }) {
+  const [currentMonth, setCurrentMonth] = React.useState(startOfMonth(selectedDate));
+  
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(monthStart);
+  const startDate = startOfWeek(monthStart);
+  const endDate = endOfWeek(monthEnd);
+
+  const days = eachDayOfInterval({ start: startDate, end: endDate });
+  const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
+
+  return (
+    <div className="select-none">
+      <div className="flex items-center justify-between mb-4 px-1">
+        <h4 className="text-[13px] font-bold text-black">{format(currentMonth, 'yyyy. MM')}</h4>
+        <div className="flex gap-1">
+          <button 
+            type="button" 
+            onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+            className="p-1.5 hover:bg-gray-100 rounded-md transition-colors"
+          >
+            <ChevronLeft size={14} className="text-gray-400" />
+          </button>
+          <button 
+            type="button" 
+            onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+            className="p-1.5 hover:bg-gray-100 rounded-md transition-colors"
+          >
+            <ChevronRight size={14} className="text-gray-400" />
+          </button>
+        </div>
+      </div>
+      <div className="grid grid-cols-7 mb-2">
+        {weekDays.map(d => (
+          <div key={d} className="text-[10px] font-bold text-slate-300 text-center">{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-y-1">
+        {days.map((day, i) => {
+          const isSelected = isSameDay(day, selectedDate);
+          const isCurrentMonth = isSameMonth(day, monthStart);
+          const isToday = isSameDay(day, new Date());
+          
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onSelect(day)}
+              className={cn(
+                "h-7 w-7 mx-auto flex items-center justify-center text-[11px] rounded-full transition-all",
+                !isCurrentMonth && "text-slate-200",
+                isCurrentMonth && !isSelected && "text-slate-600 hover:bg-gray-50",
+                isSelected && "bg-black text-white font-bold",
+                isToday && !isSelected && "ring-1 ring-black ring-inset"
+              )}
+            >
+              {format(day, 'd')}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export default function BookingModal({
@@ -46,15 +120,20 @@ export default function BookingModal({
   const [endTime, setEndTime] = React.useState(
     format(initialBooking?.endTime || setHours(setMinutes(selectedDate, 0), START_HOUR + 1), 'HH:mm')
   );
+  const [bookingDate, setBookingDate] = React.useState(
+    format(initialBooking?.startTime || selectedDate, 'yyyy-MM-dd')
+  );
   const [error, setError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = React.useState(false);
   const [isStartTimeOpen, setIsStartTimeOpen] = React.useState(false);
   const [isEndTimeOpen, setIsEndTimeOpen] = React.useState(false);
   const [isRoomDropdownOpen, setIsRoomDropdownOpen] = React.useState(false);
+  const [isDatePickerOpen, setIsDatePickerOpen] = React.useState(false);
   const startTimeRef = React.useRef<HTMLDivElement>(null);
   const endTimeRef = React.useRef<HTMLDivElement>(null);
   const roomDropdownRef = React.useRef<HTMLDivElement>(null);
+  const datePickerRef = React.useRef<HTMLDivElement>(null);
   const startTimeListRef = React.useRef<HTMLDivElement>(null);
   const endTimeListRef = React.useRef<HTMLDivElement>(null);
 
@@ -90,6 +169,7 @@ export default function BookingModal({
       setDescription(initialBooking.description || '');
       setStartTime(format(initialBooking.startTime || setHours(setMinutes(selectedDate, 0), START_HOUR), 'HH:mm'));
       setEndTime(format(initialBooking.endTime || setHours(setMinutes(selectedDate, 0), START_HOUR + 1), 'HH:mm'));
+      setBookingDate(format(initialBooking.startTime || selectedDate, 'yyyy-MM-dd'));
       setIsEditing(!initialBooking.id);
       setIsConfirmingDelete(false);
       setError(null);
@@ -107,6 +187,9 @@ export default function BookingModal({
       }
       if (roomDropdownRef.current && !roomDropdownRef.current.contains(event.target as Node)) {
         setIsRoomDropdownOpen(false);
+      }
+      if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+        setIsDatePickerOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -160,7 +243,8 @@ export default function BookingModal({
       const [startH, startM] = startTime.split(':').map(Number);
       const [endH, endM] = endTime.split(':').map(Number);
       
-      const baseDate = initialBooking?.startTime ? startOfDay(initialBooking.startTime) : startOfDay(selectedDate);
+      const [year, month, day] = bookingDate.split('-').map(Number);
+      const baseDate = new Date(year, month - 1, day);
       const start = setHours(setMinutes(baseDate, startM), startH);
       const end = setHours(setMinutes(baseDate, endM), endH);
 
@@ -210,7 +294,7 @@ export default function BookingModal({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
         <motion.div 
           initial={{ opacity: 0, scale: 0.98, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -320,7 +404,12 @@ export default function BookingModal({
                   <button
                     type="button"
                     disabled={!isEditing}
-                    onClick={() => setIsRoomDropdownOpen(!isRoomDropdownOpen)}
+                    onClick={() => {
+                      setIsRoomDropdownOpen(!isRoomDropdownOpen);
+                      setIsDatePickerOpen(false);
+                      setIsStartTimeOpen(false);
+                      setIsEndTimeOpen(false);
+                    }}
                     className={cn(
                       "w-full px-4 py-3 bg-[#F9F9F9] border rounded-lg focus:outline-none transition-all text-sm font-bold text-[#1A1A1A] flex items-center justify-between",
                       isRoomDropdownOpen ? "border-black bg-white" : "border-[#E5E5E5]",
@@ -409,19 +498,58 @@ export default function BookingModal({
               </div>
             </div>
 
-            {/* Row 3: Time */}
+            {/* Row 3: Time & Date */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-gray-500 uppercase tracking-widest pl-1">
-                예약 시간
+                일시
               </label>
               <div className="flex items-center gap-2">
+                <div className="relative w-[130px] sm:w-[140px]" ref={datePickerRef}>
+                  <button
+                    type="button"
+                    disabled={!isEditing}
+                    onClick={() => {
+                      setIsDatePickerOpen(!isDatePickerOpen);
+                      setIsStartTimeOpen(false);
+                      setIsEndTimeOpen(false);
+                      setIsRoomDropdownOpen(false);
+                    }}
+                    className={cn(
+                      "w-full px-3 py-3 bg-[#F9F9F9] border rounded-xl transition-all text-[13px] font-bold text-[#1A1A1A] disabled:opacity-80 disabled:cursor-not-allowed flex items-center justify-between",
+                      isDatePickerOpen ? "border-black ring-2 ring-black/5" : "border-[#E5E5E5] hover:border-black/20"
+                    )}
+                  >
+                    <span>{bookingDate.replace(/-/g, '. ')}</span>
+                    <Calendar size={14} className="text-slate-400" />
+                  </button>
+
+                  <AnimatePresence>
+                    {isDatePickerOpen && isEditing && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 5 }}
+                        className="absolute left-0 bottom-[calc(100%+8px)] w-[260px] bg-white border border-[#E5E5E5] rounded-2xl shadow-2xl z-[100] p-4"
+                      >
+                        <CustomMiniCalendar 
+                          selectedDate={new Date(bookingDate)} 
+                          onSelect={(d) => {
+                            setBookingDate(format(d, 'yyyy-MM-dd'));
+                            setIsDatePickerOpen(false);
+                          }} 
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+                
                 <div className="relative flex-1" ref={startTimeRef}>
                   <button
                     type="button"
                     disabled={!isEditing}
                     onClick={() => setIsStartTimeOpen(!isStartTimeOpen)}
                     className={cn(
-                      "w-full px-4 py-3 bg-[#F9F9F9] border rounded-xl transition-all text-sm font-bold text-center text-[#1A1A1A] disabled:opacity-80 disabled:cursor-not-allowed flex items-center justify-center gap-2",
+                      "w-full px-2 sm:px-4 py-3 bg-[#F9F9F9] border rounded-xl transition-all text-sm font-bold text-center text-[#1A1A1A] disabled:opacity-80 disabled:cursor-not-allowed flex items-center justify-center gap-2",
                       isStartTimeOpen ? "border-black ring-2 ring-black/5" : "border-[#E5E5E5] hover:border-black/20"
                     )}
                   >
@@ -445,6 +573,15 @@ export default function BookingModal({
                             onClick={() => {
                               setStartTime(time);
                               setIsStartTimeOpen(false);
+                              
+                              // Automatically set end time to 30 mins after start time
+                              const [h, m] = time.split(':').map(Number);
+                              const endMins = h * 60 + m + 30;
+                              const endH = Math.floor(endMins / 60);
+                              const endM = endMins % 60;
+                              if (endH <= END_HOUR) {
+                                setEndTime(`${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`);
+                              }
                             }}
                             className={cn(
                               "w-full px-4 py-2.5 text-[13px] text-center transition-colors hover:bg-gray-50",
@@ -465,7 +602,7 @@ export default function BookingModal({
                     disabled={!isEditing}
                     onClick={() => setIsEndTimeOpen(!isEndTimeOpen)}
                     className={cn(
-                      "w-full px-4 py-3 bg-[#F9F9F9] border rounded-xl transition-all text-sm font-bold text-center text-[#1A1A1A] disabled:opacity-80 disabled:cursor-not-allowed flex items-center justify-center gap-2",
+                      "w-full px-2 sm:px-4 py-3 bg-[#F9F9F9] border rounded-xl transition-all text-sm font-bold text-center text-[#1A1A1A] disabled:opacity-80 disabled:cursor-not-allowed flex items-center justify-center gap-2",
                       isEndTimeOpen ? "border-black ring-2 ring-black/5" : "border-[#E5E5E5] hover:border-black/20"
                     )}
                   >

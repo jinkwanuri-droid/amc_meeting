@@ -18,7 +18,7 @@ import { ChevronLeft, ChevronRight, Plus, Users, Clock, Presentation } from 'luc
 import { Booking, Room, Holiday } from '../types';
 import { START_HOUR, END_HOUR, ROOMS } from '../constants';
 import { cn } from '../lib/utils';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface WeeklyViewProps {
   selectedDate: Date;
@@ -65,7 +65,19 @@ export default function WeeklyView({
     currentDate: Date;
   } | null>(null);
 
+  const [direction, setDirection] = React.useState(0);
+  const [hoveredCardId, setHoveredCardId] = React.useState<string | null>(null);
+  const prevDateRef = React.useRef(selectedDate);
   const isDraggingRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (selectedDate.getTime() > prevDateRef.current.getTime()) {
+      setDirection(1);
+    } else if (selectedDate.getTime() < prevDateRef.current.getTime()) {
+      setDirection(-1);
+    }
+    prevDateRef.current = selectedDate;
+  }, [selectedDate]);
 
   React.useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -373,22 +385,22 @@ export default function WeeklyView({
         </div>
       </div>
       {/* Header */}
-      <header className="h-16 md:h-[calc(64px+5vh)] md:pt-[5vh] bg-white border-b border-[#E5E5E5] px-4 md:px-8 flex items-center justify-between shrink-0 relative">
+      <header className="h-16 md:h-[calc(64px+5vh)] md:pt-[5vh] bg-white border-b border-[#E5E5E5] px-4 md:px-8 flex items-center justify-between shrink-0 relative z-40">
         {/* Left: Date Range (Desktop & Mobile) */}
         <div className="flex items-center gap-2 md:gap-8 overflow-hidden min-w-[100px] md:min-w-0">
-          <h2 className="text-sm md:text-lg font-bold text-[#1A1A1A] tracking-tight w-auto md:w-[200px] truncate shrink-0">
+          <h2 className="text-base md:text-xl font-bold text-[#1A1A1A] tracking-tight w-auto md:w-[250px] truncate shrink-0">
             {viewMode === 'week' ? (
               <>
                 <span className="hidden lg:inline">{format(weekStart, 'yyyy.MM.dd')} - {format(addDays(weekStart, 4), 'MM.dd')}</span>
-                <span className="lg:hidden text-[16px] md:text-[14px] font-bold text-[#1A1A1A]">{format(weekStart, 'MM.dd')} - {format(addDays(weekStart, 4), 'MM.dd')}</span>
+                <span className="lg:hidden text-[17px] md:text-[16px] font-bold text-[#1A1A1A]">{format(weekStart, 'MM.dd')} - {format(addDays(weekStart, 4), 'MM.dd')}</span>
               </>
             ) : (
-              <>{format(selectedDate, 'yyyy. MM. dd', { locale: ko })}</>
+              <>{format(selectedDate, 'yyyy. MM. dd (EEEEEE)', { locale: ko })}</>
             )}
           </h2>
         </div>
 
-        {/* Center: Navigation */}
+        {/* Center: Navigation (Main Header Navigation) */}
         <div className="flex-1 flex justify-center lg:justify-start lg:flex-none">
           <div className="flex items-center bg-gray-100 p-0.5 rounded-lg border border-[#E5E5E5] scale-90 md:scale-100">
             <button 
@@ -414,7 +426,7 @@ export default function WeeklyView({
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2 md:gap-4 ml-2 md:ml-0">
-          <div className="hidden md:flex bg-gray-100 p-1 rounded-md">
+          <div className="flex bg-gray-100 p-1 rounded-md">
             <button 
               onClick={() => onViewModeChange('week')}
               className={cn(
@@ -427,7 +439,7 @@ export default function WeeklyView({
             <button 
               onClick={() => onViewModeChange('day')}
               className={cn(
-                "hidden md:block px-4 py-1 text-[12px] rounded transition-all",
+                "px-3 md:px-4 py-1 text-[12px] rounded transition-all",
                 viewMode === 'day' ? "bg-white shadow-sm text-black font-bold" : "text-slate-400 hover:text-slate-600 font-medium"
               )}
             >
@@ -437,10 +449,9 @@ export default function WeeklyView({
           
           <button 
             onClick={() => onAddBooking(selectedDate, START_HOUR, 0)}
-            className="bg-black hover:bg-zinc-800 text-white px-3 md:px-5 py-2 rounded-md flex items-center gap-2 text-xs font-bold transition-all shadow-md active:scale-95"
+            className="md:hidden bg-black hover:bg-zinc-800 text-white w-10 h-10 rounded-md flex items-center justify-center transition-all shadow-md active:scale-95"
           >
-            <Plus size={16} strokeWidth={3} />
-            <span className="hidden sm:inline">New Reservation</span>
+            <Plus size={18} strokeWidth={3} />
           </button>
         </div>
       </header>
@@ -449,413 +460,465 @@ export default function WeeklyView({
       <div 
         id="calendar-grid" 
         className={cn(
-          "flex-1 overflow-auto bg-[#FDFDFD] relative scrollbar-hide",
+          "flex-1 overflow-x-hidden overflow-y-auto bg-[#FDFDFD] relative scrollbar-hide",
           dragState && "select-none"
         )}
         style={{ userSelect: dragState ? 'none' : 'auto' }}
       >
-        <div className="min-w-fit md:min-w-[1000px] flex flex-col h-full">
-          {/* Headers */}
-          <div 
-            className="grid bg-white sticky top-0 z-30 border-b border-[#E5E5E5] shrink-0 h-[45px] md:h-[50px]"
-            style={{ gridTemplateColumns: `var(--time-col-width) repeat(${displayColumns.length}, 1fr)` }}
-          >
-            <style dangerouslySetInnerHTML={{ __html: `
-              :root { --time-col-width: 48px; }
-              @media (min-width: 768px) { :root { --time-col-width: 80px; } }
-            `}} />
-            <div className="border-r md:border-r border-[#EEEEEE] bg-transparent" />
-            {displayColumns.map((col, idx) => {
-              const isDay = col instanceof Date;
-              const holiday = isDay ? getHolidayForDay(col) : null;
-              const isSun = isDay && col.getDay() === 0;
-              const isSat = isDay && col.getDay() === 6;
-              const isPlaceholder = (col as any).isPlaceholder;
+        <style dangerouslySetInnerHTML={{ __html: `
+          :root { --time-col-width: 48px; }
+          @media (min-width: 768px) { :root { --time-col-width: 80px; } }
+          
+          .scrollbar-hide::-webkit-scrollbar { display: none; }
+          .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        `}} />
 
-              return (
-                <div 
-                  key={isDay ? col.toString() : (col as Room).id} 
-                  className={cn(
-                    "flex flex-col items-center justify-center border-r border-[#EEEEEE] last:border-r-0 relative px-1 h-full bg-white",
-                    isDay && isSameDay(col, new Date()) && "bg-black/5",
-                    isPlaceholder && "bg-[#f9f9f9]"
-                  )}
-                >
-                  {isDay ? (
-                    <div className="w-full h-full relative flex flex-col items-center justify-center">
-                       {/* Web Layout: 요일(30% L), 날짜(Center), 공휴일(70% R) */}
-                       <div className="hidden md:flex w-full h-full relative items-center justify-center">
-                          {/* 요일 (30% L) */}
-                          <div className="absolute left-[30%] -translate-x-1/2">
-                             <span className={cn(
-                               "text-[11px] font-bold",
-                               (holiday || isSun) ? "text-[#ff6b6b]/80" : isSat ? "text-blue-400" : "text-slate-400"
-                             )}>
-                               {format(col, 'EEE', { locale: ko })}
-                             </span>
-                          </div>
-
-                          {/* 날짜 (Center) */}
-                          <span className={cn(
-                            "text-[14px] font-extrabold tracking-tight",
-                            (holiday || isSun) ? "text-[#ff6b6b]" : isSat ? "text-blue-500" : "text-[#1A1A1A]"
-                          )}>
-                            {format(col, 'MM.dd')}
-                          </span>
-
-                          {/* 공휴일 (70% R) */}
-                          {holiday && (
-                            <div className="absolute left-[70%] -translate-x-1/2">
-                              <span className="px-1.5 py-0.5 bg-[#ff6b6b]/5 text-[#ff6b6b] text-[9px] font-bold rounded-md border border-[#ff6b6b]/20 whitespace-nowrap">
-                                {holiday.name}
-                              </span>
-                            </div>
-                          )}
-                       </div>
-
-                       {/* Mobile Layout: Date top, Weekday/Holiday bottom */}
-                       <div className="md:hidden flex flex-col items-center justify-center gap-0.5">
-                          <span className={cn(
-                            "text-[13px] font-extrabold tracking-tight",
-                            (holiday || isSun) ? "text-[#ff6b6b]" : isSat ? "text-blue-500" : "text-[#1A1A1A]"
-                          )}>
-                            {format(col, 'MM.dd')}
-                          </span>
-                          <div className="flex items-center justify-center">
-                            {holiday ? (
-                              <span className="px-1 py-0.5 bg-[#ff6b6b]/5 text-[#ff6b6b] text-[8px] font-bold rounded-md border border-[#ff6b6b]/20 whitespace-nowrap">
-                                {holiday.name}
-                              </span>
-                            ) : (
-                              <span className={cn(
-                                "text-[9px] font-bold",
-                                isSun ? "text-[#ff6b6b]/80" : isSat ? "text-blue-400" : "text-slate-400"
-                              )}>
-                                {format(col, 'EEE', { locale: ko })}
-                              </span>
-                            )}
-                          </div>
-                       </div>
-                    </div>
-                  ) : (
-                    <span className="text-[12px] md:text-[14px] font-bold text-black truncate max-w-full px-2">
-                       {(col as Room).name}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Time Slots & Bookings Area */}
-          <div className="flex-1 relative scrollbar-hide pt-[20px]">
-            {hours.map((hour) => (
-              <div 
-                key={hour} 
-                className="grid h-20 border-b border-[#EEEEEE] last:border-b-0 relative"
-                style={{ gridTemplateColumns: `var(--time-col-width) repeat(${displayColumns.length}, 1fr)` }}
-              >
-                {/* 30-min helper line (dashed) */}
-                <div className="absolute top-1/2 left-[var(--time-col-width)] right-0 border-t border-dashed border-[#F0F0F0] pointer-events-none" />
-                <style dangerouslySetInnerHTML={{ __html: `
-                  .hour-label { top: 0 !important; }
-                  @media (max-width: 1024px) { 
-                    .time-col-box { border-right: 1px solid #DDDDDD !important; background: transparent !important; }
-                    .hour-label { background: transparent !important; }
-                  }
-                `}} />
-
-                {/* Time Label */}
-                <div className="shrink-0 border-r border-[#EEEEEE] flex items-start justify-center bg-white transition-colors z-10 time-col-box">
-                  <span className="text-[10px] md:text-[12px] font-bold text-slate-400 -translate-y-1/2 bg-white px-0.5 md:px-1 hour-label">
+        <div className="min-w-fit md:min-w-[1000px] flex h-full">
+          {/* Static Time Sidebar */}
+          <div className="w-[var(--time-col-width)] shrink-0 sticky left-0 z-[40] bg-white/95 backdrop-blur-sm border-r border-[#E5E5E5] flex flex-col h-full pointer-events-none self-start">
+            <div className="h-[45px] md:h-[50px] border-b border-[#E1E1E1] shrink-0" /> {/* Spacer for header */}
+            <div className="flex-1 relative pt-[20px]">
+              {hours.map(hour => (
+                <div key={hour} className="h-20 flex items-start justify-center">
+                  <span className="text-[10px] md:text-[12px] font-bold text-slate-400 -translate-y-1/2 bg-white px-1">
                     {format(setHours(new Date(), hour), 'HH:00')}
                   </span>
                 </div>
-
-                {/* Columns */}
-                {displayColumns.map((col) => {
-                  const isDay = col instanceof Date;
-                  const day = isDay ? col : selectedDate;
-                  const roomId = isDay ? undefined : (col as Room).id;
-                  const holiday = getHolidayForDay(day);
-                  const isPlaceholder = (col as any).isPlaceholder;
-                  
-                  return (
-                    <div 
-                      key={isDay ? `${day}-${hour}` : `${(col as Room).id}-${hour}`} 
-                      className={cn(
-                        "border-r border-[#EEEEEE] last:border-r-0 relative hover:bg-black/[0.01] transition-colors cursor-pointer px-2.5",
-                        holiday && "bg-rose-50/20",
-                        isPlaceholder && "bg-[#f9f9f9]"
-                      )}
-                    >
-                      {!isPlaceholder && (
-                        <>
-                          {/* Clickable regions for 30m increments */}
-                          <div className="h-1/2 w-full hover:bg-black/[0.02]" onClick={(e) => { e.stopPropagation(); onAddBooking(day, hour, 0, roomId); }} />
-                          <div className="h-1/2 w-full hover:bg-black/[0.02]" onClick={(e) => { e.stopPropagation(); onAddBooking(day, hour, 30, roomId); }} />
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-
-            {/* Current Time Line */}
-            {isNowInGrid && (
-              <div 
-                className="absolute left-0 right-0 z-40 pointer-events-none"
-                style={{ top: `${timeLineTop + 20}px`, transition: 'top 0.3s ease' }}
-              >
+              ))}
+              
+              {/* Static Current Time Mark (Label part) */}
+              {isNowInGrid && (
                 <div 
-                  className="grid"
-                  style={{ gridTemplateColumns: `var(--time-col-width) 1fr` }}
+                  className="absolute right-2 z-50 flex items-center h-0"
+                  style={{ top: `${timeLineTop + 20}px`, transition: 'top 0.3s ease' }}
                 >
-                  <div className="flex justify-end items-center pr-2 h-0">
-                    <span className="bg-[#ff6b6b] text-white text-[10px] md:text-[12px] font-black px-1 md:px-1.5 py-0.5 shadow-md whitespace-nowrap rounded-sm leading-none flex items-center justify-center">
-                      {format(now, 'HH:mm')}
-                    </span>
-                  </div>
-                  <div className="relative h-[1px] bg-[#ff6b6b]">
-                    <div className="absolute left-0 w-2 h-2 rounded-full bg-[#ff6b6b] -translate-y-1/2 -translate-x-1/2 shadow-[0_0_8px_#ff6b6b]" />
+                  <span className="bg-[#ff6b6b] text-white text-[10px] md:text-[12px] font-black px-1 md:px-1.5 py-0.5 shadow-md rounded-sm leading-none">
+                    {format(now, 'HH:mm')}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Sliding Content Area */}
+          <div className="flex-1 min-w-0">
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.div 
+                key={viewMode === 'week' ? format(weekStart, 'yyyy-MM-dd') : format(selectedDate, 'yyyy-MM-dd')}
+                initial={{ x: direction * 50, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: -direction * 50, opacity: 0 }}
+                transition={{ type: "spring", damping: 25, stiffness: 200, mass: 0.8 }}
+                className="flex flex-col h-full"
+              >
+                {/* Headers */}
+                <div 
+                  className="grid bg-white sticky top-0 z-30 border-b border-[#E5E5E5] shrink-0 h-[45px] md:h-[50px]"
+                  style={{ gridTemplateColumns: `repeat(${displayColumns.length}, 1fr)` }}
+                >
+                  {displayColumns.map((col, idx) => {
+                    const isDay = col instanceof Date;
+                    const holiday = isDay ? getHolidayForDay(col) : null;
+                    const isSun = isDay && col.getDay() === 0;
+                    const isSat = isDay && col.getDay() === 6;
+                    const isPlaceholder = (col as any).isPlaceholder;
+
+                    return (
+                      <div 
+                        key={isDay ? `header-${col.toString()}` : `header-${(col as Room).id}-${idx}`} 
+                        className={cn(
+                          "flex flex-col items-center justify-center border-r border-[#EEEEEE] last:border-r-0 relative px-1 h-full bg-white",
+                          isDay && isSameDay(col, new Date()) && "bg-black/5",
+                          isPlaceholder && "bg-[#f9f9f9]"
+                        )}
+                      >
+                        {isDay ? (
+                          <div className="w-full h-full relative flex flex-col items-center justify-center">
+                              {/* Web Layout */}
+                              <div className="hidden md:grid grid-cols-[3fr_4fr_3fr] items-center w-full h-full px-1">
+                                <div className="flex justify-center overflow-hidden">
+                                    {holiday && (
+                                      <span className="px-1.5 py-0.5 bg-[#ff6b6b]/5 text-[#ff6b6b] text-[8px] font-bold rounded-md border border-[#ff6b6b]/20 whitespace-nowrap">
+                                        {holiday.name.length > 6 ? holiday.name.slice(0, 5) + '...' : holiday.name}
+                                      </span>
+                                    )}
+                                </div>
+                                <div className="flex justify-center">
+                                    <span className={cn(
+                                      "text-[16px] font-black tracking-tight leading-none",
+                                      (holiday || isSun) ? "text-[#ff6b6b]" : isSat ? "text-blue-500" : "text-[#1A1A1A]"
+                                    )}>
+                                      {format(col, 'MM.dd')}
+                                    </span>
+                                </div>
+                                <div className="flex justify-center">
+                                    <span className={cn(
+                                      "text-[12px] font-bold whitespace-nowrap",
+                                      (holiday || isSun) ? "text-[#ff6b6b]/80" : isSat ? "text-blue-400" : "text-slate-400"
+                                    )}>
+                                      {['일', '월', '화', '수', '목', '금', '토'][col.getDay()]}
+                                    </span>
+                                </div>
+                              </div>
+                              {/* Mobile Layout */}
+                              <div className="md:hidden flex flex-col items-center justify-center gap-1">
+                                <span className={cn(
+                                  "text-[15px] font-black tracking-tight",
+                                  (holiday || isSun) ? "text-[#ff6b6b]" : isSat ? "text-blue-500" : "text-[#1A1A1A]"
+                                )}>
+                                  {format(col, 'MM.dd')}
+                                </span>
+                                <div className="flex items-center justify-center">
+                                  {holiday ? (
+                                    <span className="px-1 py-0.5 bg-[#ff6b6b]/5 text-[#ff6b6b] text-[8px] font-bold rounded-md border border-[#ff6b6b]/20 whitespace-nowrap">
+                                      {holiday.name}
+                                    </span>
+                                  ) : (
+                                    <span className={cn(
+                                      "text-[10px] font-bold",
+                                      isSun ? "text-[#ff6b6b]/80" : isSat ? "text-blue-400" : "text-slate-400"
+                                    )}>
+                                      {['일', '월', '화', '수', '목', '금', '토'][col.getDay()]}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 md:gap-2 px-2 truncate max-w-full">
+                              <div 
+                                className="w-2.5 h-2.5 rounded-full shrink-0 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]" 
+                                style={{ backgroundColor: (col as Room).color?.match(/\[(.*?)\]/)?.[1] || '#cbd098' }}
+                              ></div>
+                              <span className="text-[12px] md:text-[14px] font-bold text-black truncate">
+                                {(col as Room).name}
+                              </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Grid Rows & Bookings Area */}
+                <div className="flex-1 relative pt-[20px]">
+                  {hours.map((hour) => (
+                    <div 
+                      key={hour} 
+                      className="grid h-20 border-b border-[#EEEEEE] last:border-b-0 relative"
+                      style={{ gridTemplateColumns: `repeat(${displayColumns.length}, 1fr)` }}
+                    >
+                      {/* 30-min helper line (dashed) */}
+                      <div className="absolute top-1/2 left-0 right-0 border-t border-dashed border-[#F0F0F0] pointer-events-none" />
+
+                      {/* Columns */}
+                      {displayColumns.map((col, idx) => {
+                        const isDay = col instanceof Date;
+                        const day = isDay ? col : selectedDate;
+                        const roomId = isDay ? undefined : (col as Room).id;
+                        const holiday = getHolidayForDay(day);
+                        const isPlaceholder = (col as any).isPlaceholder;
+                        
+                        return (
+                          <div 
+                            key={isDay ? `${day}-${hour}` : `${(col as Room).id}-${hour}-${idx}`} 
+                            className={cn(
+                              "border-r border-[#EEEEEE] last:border-r-0 relative hover:bg-black/[0.01] transition-colors cursor-pointer px-2.5",
+                              holiday && "bg-rose-50/20",
+                              isPlaceholder && "bg-[#f9f9f9]"
+                            )}
+                          >
+                            {!isPlaceholder && (
+                              <>
+                                <div className="h-1/2 w-full hover:bg-black/[0.02]" onClick={(e) => { e.stopPropagation(); onAddBooking(day, hour, 0, roomId); }} />
+                                <div className="h-1/2 w-full hover:bg-black/[0.02]" onClick={(e) => { e.stopPropagation(); onAddBooking(day, hour, 30, roomId); }} />
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+
+                  {/* Red Line part (Grid part) */}
+                  {isNowInGrid && (
+                    <div 
+                      className="absolute left-0 right-0 z-40 pointer-events-none h-[1px] bg-[#ff6b6b]"
+                      style={{ top: `${timeLineTop + 20}px`, transition: 'top 0.3s ease' }}
+                    >
+                      <div className="absolute left-0 w-2 h-2 rounded-full bg-[#ff6b6b] -translate-y-1/2 -translate-x-1/2 shadow-[0_0_8px_#ff6b6b]" />
+                    </div>
+                  )}
+
+                  {/* Bookings Layer */}
+                  <div 
+                    className="absolute inset-0 pointer-events-none grid"
+                    style={{ gridTemplateColumns: `repeat(${displayColumns.length}, 1fr)` }}
+                  >
+                    {displayColumns.map((col, colIdx) => {
+                      const isDayCol = col instanceof Date;
+
+                      if ((col as any).isPlaceholder) return <div key={colIdx} />;
+
+                      const columnBookings = bookings.filter(booking => {
+                        if (dragState && dragState.id === booking.id) {
+                          if (viewMode === 'week') {
+                            return isSameDay(dragState.currentDate, col as Date);
+                          } else {
+                            return isSameDay(dragState.currentDate, selectedDate) && dragState.currentRoomId === (col as Room).id;
+                          }
+                        }
+                        if (viewMode === 'week') {
+                          return isSameDay(booking.startTime, col as Date);
+                        } else {
+                          return isSameDay(booking.startTime, selectedDate) && booking.roomId === (col as Room).id;
+                        }
+                      });
+                      const layouts = getBookingLayout(columnBookings);
+
+                      return (
+                        <div key={colIdx} className="relative h-full pointer-events-none">
+                            {columnBookings.map((booking) => {
+                                const isDragging = dragState?.id === booking.id;
+                                const displayStart = isDragging ? dragState.currentStart : booking.startTime;
+                                const displayEnd = isDragging ? dragState.currentEnd : booking.endTime;
+
+                                const startMins = displayStart.getHours() * 60 + displayStart.getMinutes();
+                                const gridStartMins = START_HOUR * 60;
+                                const topOffset = ((startMins - gridStartMins) / 60) * 80;
+                                const heightOffset = (differenceInMinutes(displayEnd, displayStart) / 60) * 80;
+
+                                const bookingLayout = layouts.get(booking.id) || { width: '90%', left: '5%', index: 0, groupSize: 1 };
+                                const bookingRoom = rooms.find(r => r.id === booking.roomId);
+                                const hexColor = (bookingRoom?.color || 'bg-[#cbd098]').match(/\[(.*?)\]/)?.[1] || '#cbd098';
+
+                                return (
+                                  <motion.div
+                                    layout={!isDragging}
+                                    layoutId={isDragging ? undefined : `booking-${booking.id}`}
+                                    key={booking.id}
+                                    transition={{
+                                      layout: { type: "tween", ease: [0.85, 0, 0.15, 1], duration: 0.5 },
+                                      opacity: { duration: 0.2 }
+                                    }}
+                                    whileHover={!isDragging ? {
+                                      zIndex: 320,
+                                      scale: 1.02,
+                                      minWidth: bookingLayout.groupSize >= 3 ? '140px' : undefined,
+                                      boxShadow: "0 10px 30px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)"
+                                    } : undefined}
+                                    onHoverStart={() => setHoveredCardId(booking.id)}
+                                    onHoverEnd={() => setHoveredCardId(null)}
+                                    onMouseDown={(e) => {
+                                      e.stopPropagation();
+                                      isDraggingRef.current = false;
+                                      const gridElement = document.getElementById('calendar-grid');
+                                      setDragState({
+                                        id: booking.id,
+                                        type: 'move',
+                                        startY: e.clientY,
+                                        startX: e.clientX,
+                                        hasMoved: false,
+                                        gridRect: gridElement?.getBoundingClientRect() || null,
+                                        originalStart: booking.startTime,
+                                        originalEnd: booking.endTime,
+                                        originalRoomId: booking.roomId,
+                                        originalDate: isDayCol ? col as Date : selectedDate,
+                                        currentStart: booking.startTime,
+                                        currentEnd: booking.endTime,
+                                        currentRoomId: booking.roomId,
+                                        currentDate: isDayCol ? col as Date : selectedDate
+                                      });
+                                    }}
+                                    onClick={(e) => {
+                                      if (isDraggingRef.current) return;
+                                      e.stopPropagation();
+                                      onEditBooking(booking);
+                                    }}
+                                    className={cn(
+                                      "absolute px-1 md:px-3 py-1 md:py-2 pointer-events-auto cursor-grab active:cursor-grabbing flex flex-col justify-between rounded-lg md:rounded-xl font-['Pretendard'] group transition-shadow shadow-[0_4px_12px_-2px_rgba(0,0,0,0.12),0_2px_8px_-1px_rgba(0,0,0,0.08)] border border-white/40 text-[#4E5057] antialiased",
+                                      isDragging && "z-50 shadow-2xl ring-2 ring-white/50 opacity-95 scale-[1.03] cursor-grabbing"
+                                    )}
+                                    style={{
+                                      left: bookingLayout.left,
+                                      width: bookingLayout.width,
+                                      top: `${topOffset + 20}px`, 
+                                      height: `${heightOffset - 2}px`, 
+                                      zIndex: isDragging ? 200 : (10 + bookingLayout.index),
+                                      background: `linear-gradient(135deg, ${hexColor} 0%, color-mix(in srgb, ${hexColor}, white 20%) 100%)`,
+                                      transition: isDragging ? 'none' : undefined,
+                                      paddingLeft: isMobile ? '1px' : undefined,
+                                      paddingRight: isMobile ? '1px' : undefined,
+                                      backfaceVisibility: 'hidden',
+                                      WebkitFontSmoothing: 'antialiased',
+                                      transform: isDragging ? 'scale(1.03) translateZ(0)' : 'translateZ(0)'
+                                    }}
+                                  >
+                                    {/* Resize Handles */}
+                                    <div 
+                                      className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize z-20"
+                                      onMouseDown={(e) => {
+                                        e.stopPropagation();
+                                        isDraggingRef.current = false;
+                                        const gridElement = document.getElementById('calendar-grid');
+                                        setDragState({
+                                          id: booking.id,
+                                          type: 'resize-top',
+                                          startY: e.clientY,
+                                          startX: e.clientX,
+                                          hasMoved: false,
+                                          gridRect: gridElement?.getBoundingClientRect() || null,
+                                          originalStart: booking.startTime,
+                                          originalEnd: booking.endTime,
+                                          originalRoomId: booking.roomId,
+                                          originalDate: isDayCol ? col as Date : selectedDate,
+                                          currentStart: booking.startTime,
+                                          currentEnd: booking.endTime,
+                                          currentRoomId: booking.roomId,
+                                          currentDate: isDayCol ? col as Date : selectedDate
+                                        });
+                                      }}
+                                    />
+                                    <div 
+                                      className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize z-20"
+                                      onMouseDown={(e) => {
+                                        e.stopPropagation();
+                                        isDraggingRef.current = false;
+                                        const gridElement = document.getElementById('calendar-grid');
+                                        setDragState({
+                                          id: booking.id,
+                                          type: 'resize-bottom',
+                                          startY: e.clientY,
+                                          startX: e.clientX,
+                                          hasMoved: false,
+                                          gridRect: gridElement?.getBoundingClientRect() || null,
+                                          originalStart: booking.startTime,
+                                          originalEnd: booking.endTime,
+                                          originalRoomId: booking.roomId,
+                                          originalDate: isDayCol ? col as Date : selectedDate,
+                                          currentStart: booking.startTime,
+                                          currentEnd: booking.endTime,
+                                          currentRoomId: booking.roomId,
+                                          currentDate: isDayCol ? col as Date : selectedDate
+                                        });
+                                      }}
+                                    />
+
+                                    <motion.div 
+                                      layout 
+                                      transition={isDragging ? { duration: 0 } : {
+                                        layout: { type: "spring", stiffness: 500, damping: 40, mass: 1 }
+                                      }}
+                                      className={cn("flex flex-col overflow-hidden h-full pointer-events-none origin-top-left")}
+                                    >
+                                      {(!isMobile && (bookingLayout.groupSize <= 2 || hoveredCardId === booking.id)) || heightOffset >= 40 ? (
+                                        <div className="flex flex-col h-full px-1.5 py-1">
+                                          <div className="flex-1 overflow-hidden">
+                                            <motion.h4 
+                                              layout="position" 
+                                              initial={bookingLayout.groupSize >= 3 ? { opacity: 0, scale: 0.95, y: 5 } : false}
+                                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                                              transition={isDragging ? { duration: 0 } : { 
+                                                layout: { duration: 0.15 },
+                                                opacity: { delay: bookingLayout.groupSize >= 3 ? 0.35 : 0, duration: 0.25 }
+                                              }}
+                                              className={cn(
+                                                "text-[13px] font-bold tracking-tight text-[#4E5057]",
+                                                hoveredCardId === booking.id ? "" : "truncate"
+                                              )}
+                                            >
+                                              {booking.title}
+                                            </motion.h4>
+                                            <AnimatePresence>
+                                              {(booking.projectName && (bookingLayout.groupSize <= 2 || hoveredCardId === booking.id) && heightOffset >= 50) && (
+                                                <motion.div 
+                                                  layout="position"
+                                                  initial={bookingLayout.groupSize >= 3 ? { opacity: 0, x: -5, y: 5 } : false}
+                                                  animate={{ opacity: 1, x: 0, y: 0 }}
+                                                  exit={{ opacity: 0 }}
+                                                  transition={isDragging ? { duration: 0 } : { 
+                                                    layout: { duration: 0.15 },
+                                                    opacity: { delay: bookingLayout.groupSize >= 3 ? 0.38 : 0, duration: 0.25 }
+                                                  }}
+                                                  className={cn(
+                                                    "text-[10px] opacity-90 font-semibold text-[#4E5057]/90",
+                                                    hoveredCardId === booking.id ? "" : "truncate"
+                                                  )}
+                                                >
+                                                  [{booking.projectName}]
+                                                </motion.div>
+                                              )}
+                                            </AnimatePresence>
+                                            
+                                            <AnimatePresence>
+                                              {((((displayEnd.getTime() - displayStart.getTime()) / (1000 * 60 * 60)) > 1 || hoveredCardId === booking.id) && heightOffset >= 80) && (
+                                                <motion.div 
+                                                  layout="position"
+                                                  initial={{ opacity: 0, y: 8 }}
+                                                  animate={{ opacity: 1, y: 0 }}
+                                                  exit={{ opacity: 0 }}
+                                                  transition={isDragging ? { duration: 0 } : { 
+                                                    layout: { duration: 0.15 },
+                                                    opacity: { delay: 0.41, duration: 0.25 }
+                                                  }}
+                                                  className={cn(
+                                                    "text-[10px] mt-0.5 opacity-80 font-medium text-[#4E5057]/80",
+                                                    hoveredCardId === booking.id ? "" : "truncate"
+                                                  )}
+                                                >
+                                                  {booking.organizer}
+                                                </motion.div>
+                                              )}
+                                            </AnimatePresence>
+                                          </div>
+
+                                          <AnimatePresence>
+                                            {((((displayEnd.getTime() - displayStart.getTime()) / (1000 * 60 * 60)) > 1 || hoveredCardId === booking.id) && heightOffset >= 100) && (
+                                              <motion.div 
+                                                layout="position"
+                                                initial={{ opacity: 0, y: 8 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0 }}
+                                                transition={isDragging ? { duration: 0 } : { 
+                                                  layout: { duration: 0.15 },
+                                                  opacity: { delay: 0.44, duration: 0.25 }
+                                                }}
+                                                className="mt-auto shrink-0"
+                                              >
+                                                <div className="h-[1px] bg-[#4E5057]/15 w-full my-1" />
+                                                <div className="text-[10px] leading-[1.2] opacity-90 pb-0.5 text-[#4E5057]">
+                                                  <div className="font-bold">
+                                                    {format(displayStart, 'HH:mm')} - {format(displayEnd, 'HH:mm')}
+                                                  </div>
+                                                  <div className={cn(
+                                                    "opacity-80 font-medium",
+                                                    hoveredCardId === booking.id ? "" : "truncate"
+                                                  )}>
+                                                    {bookingRoom ? bookingRoom.name : '회의실'}
+                                                  </div>
+                                                </div>
+                                              </motion.div>
+                                            )}
+                                          </AnimatePresence>
+                                        </div>
+                                      ) : (
+                                        <div className="flex flex-col h-full px-1 justify-center items-center overflow-hidden">
+                                          <span className="text-[10px] font-bold text-[#4E5057] truncate w-full text-center opacity-80">
+                                            {booking.title}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </motion.div>
+                                  </motion.div>
+                                );
+                            })}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* Bookings Layer */}
-            <div 
-              className="absolute inset-0 pointer-events-none grid"
-              style={{ gridTemplateColumns: `var(--time-col-width) repeat(${displayColumns.length}, 1fr)` }}
-            >
-               <div className="pointer-events-none" /> {/* Spacer for time column */}
-               {displayColumns.map((_, colIdx) => {
-                 const col = displayColumns[colIdx];
-                 const isDayCol = col instanceof Date;
-
-                 if ((col as any).isPlaceholder) return <div key={colIdx} />;
-
-                 const columnBookings = bookings.filter(booking => {
-                   // If this booking is being dragged, it belongs to its "current" drag column
-                   if (dragState && dragState.id === booking.id) {
-                     if (viewMode === 'week') {
-                       return isSameDay(dragState.currentDate, col as Date);
-                     } else {
-                       return isSameDay(dragState.currentDate, selectedDate) && dragState.currentRoomId === (col as Room).id;
-                     }
-                   }
-
-                   // Original filtering for non-dragged bookings
-                   if (viewMode === 'week') {
-                     return isSameDay(booking.startTime, col as Date);
-                   } else {
-                     return isSameDay(booking.startTime, selectedDate) && booking.roomId === (col as Room).id;
-                   }
-                 });
-                 const layouts = getBookingLayout(columnBookings);
-
-                 return (
-                   <div key={colIdx} className="relative h-full pointer-events-none">
-                      {columnBookings.map((booking) => {
-                          const isDragging = dragState?.id === booking.id;
-                          const displayStart = isDragging ? dragState.currentStart : booking.startTime;
-                          const displayEnd = isDragging ? dragState.currentEnd : booking.endTime;
-                          const displayRoomId = isDragging ? dragState.currentRoomId : booking.roomId;
-                          const displayDate = isDragging ? dragState.currentDate : (isDayCol ? col as Date : selectedDate);
-
-                          const startMins = displayStart.getHours() * 60 + displayStart.getMinutes();
-                          const gridStartMins = START_HOUR * 60;
-                          const top = ((startMins - gridStartMins) / 60) * 80;
-                          const height = (differenceInMinutes(displayEnd, displayStart) / 60) * 80;
-
-                          const layout = layouts.get(booking.id) || { width: '90%', left: '5%', index: 0, groupSize: 1 };
-                          const bookingRoom = rooms.find(r => r.id === booking.roomId);
-                          const themeColor = bookingRoom?.color || 'bg-[#cbd098]';
-                          const hexColor = themeColor.match(/\[(.*?)\]/)?.[1] || '#cbd098';
-
-                          return (
-                            <motion.div
-                              layout={!isDragging}
-                              layoutId={isDragging ? undefined : `booking-${booking.id}`}
-                              key={booking.id}
-                              transition={{
-                                layout: { 
-                                  type: "tween", 
-                                  ease: [0.85, 0, 0.15, 1], // Fast start, slow middle, fast end (S-curve)
-                                  duration: 0.5 
-                                },
-                                opacity: { duration: 0.2 }
-                              }}
-                              onMouseDown={(e) => {
-                                e.stopPropagation();
-                                isDraggingRef.current = false;
-                                const gridElement = document.getElementById('calendar-grid');
-                                setDragState({
-                                  id: booking.id,
-                                  type: 'move',
-                                  startY: e.clientY,
-                                  startX: e.clientX,
-                                  hasMoved: false,
-                                  gridRect: gridElement?.getBoundingClientRect() || null,
-                                  originalStart: booking.startTime,
-                                  originalEnd: booking.endTime,
-                                  originalRoomId: booking.roomId,
-                                  originalDate: isDayCol ? col as Date : selectedDate,
-                                  currentStart: booking.startTime,
-                                  currentEnd: booking.endTime,
-                                  currentRoomId: booking.roomId,
-                                  currentDate: isDayCol ? col as Date : selectedDate
-                                });
-                              }}
-                              onClick={(e) => {
-                                if (isDraggingRef.current) return;
-                                e.stopPropagation();
-                                onEditBooking(booking);
-                              }}
-                              className={cn(
-                                "absolute px-1 md:px-3 py-1 md:py-2 pointer-events-auto cursor-grab active:cursor-grabbing flex flex-col justify-between rounded-lg md:rounded-xl font-['Pretendard'] group transition-shadow",
-                                "shadow-[0_4px_12px_-2px_rgba(0,0,0,0.12),0_2px_8px_-1px_rgba(0,0,0,0.08)]",
-                                "border border-white/40",
-                                isDragging && "z-50 shadow-2xl ring-2 ring-white/50 opacity-95 scale-[1.03] cursor-grabbing",
-                                "text-[#4E5057] antialiased"
-                              )}
-                              style={{
-                                left: layout.left,
-                                width: layout.width,
-                                top: `${top + 20}px`, 
-                                height: `${height - 2}px`, 
-                                zIndex: isDragging ? 100 : (10 + layout.index),
-                                background: `linear-gradient(135deg, ${hexColor} 0%, color-mix(in srgb, ${hexColor}, white 20%) 100%)`,
-                                transition: isDragging ? 'none' : undefined,
-                                paddingLeft: isMobile ? '1px' : undefined,
-                                paddingRight: isMobile ? '1px' : undefined,
-                                backfaceVisibility: 'hidden',
-                                WebkitFontSmoothing: 'antialiased',
-                                transform: isDragging ? 'scale(1.03) translateZ(0)' : 'translateZ(0)'
-                              }}
-                            >
-                              {/* Resize Handles */}
-                              <div 
-                                className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize z-20"
-                                onMouseDown={(e) => {
-                                  e.stopPropagation();
-                                  isDraggingRef.current = false;
-                                  const gridElement = document.getElementById('calendar-grid');
-                                  setDragState({
-                                    id: booking.id,
-                                    type: 'resize-top',
-                                    startY: e.clientY,
-                                    startX: e.clientX,
-                                    hasMoved: false,
-                                    gridRect: gridElement?.getBoundingClientRect() || null,
-                                    originalStart: booking.startTime,
-                                    originalEnd: booking.endTime,
-                                    originalRoomId: booking.roomId,
-                                    originalDate: isDayCol ? col as Date : selectedDate,
-                                    currentStart: booking.startTime,
-                                    currentEnd: booking.endTime,
-                                    currentRoomId: booking.roomId,
-                                    currentDate: isDayCol ? col as Date : selectedDate
-                                  });
-                                }}
-                              />
-                              <div 
-                                className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize z-20"
-                                onMouseDown={(e) => {
-                                  e.stopPropagation();
-                                  isDraggingRef.current = false;
-                                  const gridElement = document.getElementById('calendar-grid');
-                                  setDragState({
-                                    id: booking.id,
-                                    type: 'resize-bottom',
-                                    startY: e.clientY,
-                                    startX: e.clientX,
-                                    hasMoved: false,
-                                    gridRect: gridElement?.getBoundingClientRect() || null,
-                                    originalStart: booking.startTime,
-                                    originalEnd: booking.endTime,
-                                    originalRoomId: booking.roomId,
-                                    originalDate: isDayCol ? col as Date : selectedDate,
-                                    currentStart: booking.startTime,
-                                    currentEnd: booking.endTime,
-                                    currentRoomId: booking.roomId,
-                                    currentDate: isDayCol ? col as Date : selectedDate
-                                  });
-                                }}
-                              />
-
-                              <motion.div 
-                                layout 
-                                transition={isDragging ? { duration: 0 } : {
-                                  layout: { type: "spring", stiffness: 500, damping: 40, mass: 1 }
-                                }}
-                                className={cn("flex flex-col overflow-hidden h-full pointer-events-none origin-top-left")}
-                              >
-                                {layout.groupSize <= 6 ? (
-                                  <div className="flex flex-col h-full">
-                                    <div className="flex-1 overflow-hidden">
-                                      <motion.h4 
-                                        layout="position" 
-                                        transition={isDragging ? { duration: 0 } : { duration: 0.15 }}
-                                        className="text-[14px] font-bold truncate tracking-tight text-[#4E5057]"
-                                      >
-                                        {booking.title}
-                                      </motion.h4>
-                                      {booking.projectName && (
-                                        <motion.div 
-                                          layout="position"
-                                          transition={isDragging ? { duration: 0 } : { duration: 0.15 }}
-                                          className="text-[11px] opacity-90 truncate font-semibold text-[#4E5057]/90"
-                                        >
-                                          [{booking.projectName}]
-                                        </motion.div>
-                                      )}
-                                      
-                                      {/* Only show organizer if duration > 1 hour */}
-                                      {((booking.endTime.getTime() - booking.startTime.getTime()) / (1000 * 60 * 60)) > 1 && (
-                                        <motion.div 
-                                          layout="position"
-                                          transition={isDragging ? { duration: 0 } : { duration: 0.15 }}
-                                          className="text-[11px] mt-0.5 opacity-80 truncate font-medium text-[#4E5057]/80"
-                                        >
-                                          {booking.organizer}
-                                        </motion.div>
-                                      )}
-                                    </div>
-
-                                    {/* Bottom details with divider, only if duration > 1 hour */}
-                                    {((booking.endTime.getTime() - booking.startTime.getTime()) / (1000 * 60 * 60)) > 1 && (
-                                      <motion.div 
-                                        layout="position"
-                                        transition={isDragging ? { duration: 0 } : { duration: 0.15 }}
-                                        className="mt-auto shrink-0"
-                                      >
-                                        <div className="h-[1px] bg-[#4E5057]/15 w-full my-1.5" />
-                                        <div className="text-[11px] leading-[1.3] opacity-90 pb-0.5 text-[#4E5057]">
-                                          <div className="font-bold">
-                                            {format(displayStart, 'HH:mm')} - {format(displayEnd, 'HH:mm')}
-                                          </div>
-                                          <div className="truncate opacity-80 font-medium">
-                                            {bookingRoom ? bookingRoom.name : '회의실'}
-                                          </div>
-                                        </div>
-                                      </motion.div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="flex flex-col h-full justify-center items-center opacity-40">
-                                    {/* Narrow tracks show nothing or minimal icon */}
-                                  </div>
-                                )}
-                              </motion.div>
-                            </motion.div>
-                          );
-                      })}
-                   </div>
-                 );
-               })}
-            </div>
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
       </div>

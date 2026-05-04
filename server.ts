@@ -52,6 +52,7 @@ async function startServer() {
       }
 
       await sql`CREATE TABLE IF NOT EXISTS holidays (id TEXT PRIMARY KEY, name TEXT NOT NULL, date DATE NOT NULL);`;
+      await sql`CREATE TABLE IF NOT EXISTS activity_log (id SERIAL PRIMARY KEY, action TEXT NOT NULL, timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);`;
       console.log("✅ DB Initialization successful");
     } catch (e: any) {
       console.error("❌ DB Initialization failed:", e.message);
