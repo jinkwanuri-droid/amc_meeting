@@ -159,265 +159,6 @@ function SortableRoomItem({ room, onUpdate, onRemove, isEditMode }: SortableRoom
   );
 }
 
-type StatsPeriod = 'today' | '7days' | '1month' | '3months' | 'all';
-
-function StatisticsView({ bookings, rooms, backendStats }: { bookings: Booking[], rooms: Room[], backendStats: any }) {
-  const [period, setPeriod] = React.useState<StatsPeriod>('all');
-  const now = new Date();
-
-  // 0. Filter bookings based on selected period
-  const filteredBookings = React.useMemo(() => {
-    return bookings.filter(b => {
-      // Booking times are ISO strings from backend, need to wrap in new Date() if they aren't already Date objects
-      const startTime = new Date(b.startTime);
-      if (period === 'all') return true;
-      if (period === 'today') return isWithinInterval(startTime, { start: startOfDay(now), end: endOfDay(now) });
-      if (period === '7days') return isAfter(startTime, subDays(now, 7));
-      if (period === '1month') return isAfter(startTime, subMonths(now, 1));
-      if (period === '3months') return isAfter(startTime, subMonths(now, 3));
-      return true;
-    });
-  }, [bookings, period]);
-
-  // 1. Room Statistics
-  const roomStats = rooms.map(room => {
-    const roomBookings = filteredBookings.filter(b => b.roomId === room.id);
-    const totalMinutes = roomBookings.reduce((acc, b) => acc + differenceInMinutes(new Date(b.endTime), new Date(b.startTime)), 0);
-    
-    // Utilization calculation based on period
-    let daysWithData = 30; // Default for 'all'
-    if (period === 'today') daysWithData = 1;
-    else if (period === '7days') daysWithData = 7;
-    else if (period === '1month') daysWithData = 30;
-    else if (period === '3months') daysWithData = 90;
-    else {
-      // For 'all', calculate actual spread if possible, or use a reasonable window
-      if (bookings.length > 0) {
-        const start = bookings.reduce((min, b) => {
-          const t = new Date(b.startTime);
-          return t < min ? t : min;
-        }, new Date(bookings[0].startTime));
-        const end = bookings.reduce((max, b) => {
-          const t = new Date(b.endTime);
-          return t > max ? t : max;
-        }, new Date(bookings[0].endTime));
-        daysWithData = Math.max(1, Math.ceil(differenceInMinutes(end, start) / (24 * 60)));
-      }
-    }
-
-    const totalAvailableMinutes = daysWithData * 11 * 60; // 07:00 - 18:00
-    const utilization = Math.min(100, (totalMinutes / totalAvailableMinutes) * 100);
-
-    return {
-      name: room.name,
-      count: roomBookings.length,
-      minutes: totalMinutes,
-      hours: (totalMinutes / 60).toFixed(1),
-      utilization: parseFloat(utilization.toFixed(1)),
-      color: room.color?.match(/\[(.*?)\]/)?.[1] || '#cbd098'
-    };
-  });
-
-  // 2. Keyword Analysis
-  const organizerCounts: Record<string, number> = {};
-  const projectCounts: Record<string, number> = {};
-  
-  filteredBookings.forEach(b => {
-    organizerCounts[b.organizer] = (organizerCounts[b.organizer] || 0) + 1;
-    if (b.projectName) {
-      projectCounts[b.projectName] = (projectCounts[b.projectName] || 0) + 1;
-    }
-  });
-
-  const topOrganizers = Object.entries(organizerCounts)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5)
-    .map(([name, value]) => ({ name, value }));
-
-  const topProjects = Object.entries(projectCounts)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5)
-    .map(([name, value]) => ({ name, value }));
-
-  const periodOptions: { value: StatsPeriod; label: string }[] = [
-    { value: 'today', label: '오늘' },
-    { value: '7days', label: '7일' },
-    { value: '1month', label: '1개월' },
-    { value: '3months', label: '3개월' },
-    { value: 'all', label: '전체' }
-  ];
-
-  return (
-    <div className="space-y-8 pb-10 relative">
-      {/* Period Filter (Blue box area position) */}
-      <div className="absolute top-[-52px] right-2 z-10 flex items-center bg-[#F1F5F9] p-0.5 rounded-lg border border-slate-200">
-        {periodOptions.map(opt => (
-          <button
-            key={opt.value}
-            onClick={() => setPeriod(opt.value)}
-            className={cn(
-              "px-2 py-1 text-[9px] font-black rounded-md transition-all whitespace-nowrap",
-              period === opt.value 
-                ? "bg-white text-black shadow-sm" 
-                : "text-slate-400 hover:text-slate-500"
-            )}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
-
-      {/* 1. Traffic Overview */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-[#F9F9F9] rounded-2xl p-5 border border-slate-100 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 left-0 w-1 h-full bg-black/10 group-hover:bg-black transition-colors" />
-          <div className="flex items-center gap-3 text-slate-400 mb-3">
-            <Users size={16} />
-            <span className="text-[10px] font-bold uppercase tracking-widest">오늘 방문자</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-black text-black">{backendStats?.visitors || 0}</span>
-            <span className="text-[12px] font-bold text-slate-400">명</span>
-          </div>
-        </div>
-        <div className="bg-[#F9F9F9] rounded-2xl p-5 border border-slate-100 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 left-0 w-1 h-full bg-emerald-100 group-hover:bg-emerald-500 transition-colors" />
-          <div className="flex items-center gap-3 text-slate-400 mb-3">
-            <TrendingUp size={16} />
-            <span className="text-[10px] font-bold uppercase tracking-widest">오늘 요청건수</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-black text-black">
-              {(backendStats?.actions?.today?.create || 0) + (backendStats?.actions?.today?.update || 0) + (backendStats?.actions?.today?.delete || 0)}
-            </span>
-            <span className="text-[12px] font-bold text-slate-400">건</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Action History Table */}
-      <div className="space-y-3">
-        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-          <Clock size={14} />
-          요청 기록 요약
-        </h3>
-        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-          <table className="w-full text-left text-[11px]">
-            <thead>
-              <tr className="bg-[#F9F9F9] text-slate-400 font-black tracking-widest uppercase">
-                <th className="px-4 py-2 border-b border-slate-100">기간</th>
-                <th className="px-4 py-2 border-b border-slate-100">작성</th>
-                <th className="px-4 py-2 border-b border-slate-100">수정</th>
-                <th className="px-4 py-2 border-b border-slate-100">삭제</th>
-                <th className="px-4 py-2 border-b border-slate-100 text-right">합계</th>
-              </tr>
-            </thead>
-            <tbody className="font-bold text-slate-600">
-              {['today', 'week', 'month', 'all'].map(period => {
-                const data = backendStats?.actions?.[period] || { create: 0, update: 0, delete: 0 };
-                const total = data.create + data.update + data.delete;
-                const labels: Record<string, string> = { today: '오늘', week: '최근 7일', month: '최근 30일', all: '전체' };
-                return (
-                  <tr key={period} className="hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0">
-                    <td className="px-4 py-2.5 font-black text-black">{labels[period]}</td>
-                    <td className="px-4 py-2.5">{data.create}</td>
-                    <td className="px-4 py-2.5">{data.update}</td>
-                    <td className="px-4 py-2.5">{data.delete}</td>
-                    <td className="px-4 py-2.5 text-right text-black font-black">{total}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* 3. Room Utilization Bar Chart */}
-      <div className="space-y-3">
-        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-          <BarChart3 size={14} />
-          회의실 가동률 (%)
-        </h3>
-        <div className="h-[200px] w-full bg-[#FDFDFD] rounded-2xl border border-slate-100 p-4 shadow-inner">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={roomStats} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
-              <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
-              <Tooltip 
-                cursor={{ fill: 'rgba(0,0,0,0.02)' }}
-                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '12px', fontWeight: 'bold' }}
-              />
-              <Bar dataKey="utilization" radius={[6, 6, 0, 0]}>
-                {roomStats.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} fillOpacity={0.8} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* 4. Room Share Pie Chart & Reservation Breakdown */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-3">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-            <Hash size={14} />
-            예약 비중 (건수)
-          </h3>
-          <div className="h-[180px] bg-white rounded-2xl border border-slate-100 flex items-center justify-center p-2 shadow-sm">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={roomStats}
-                  innerRadius={50}
-                  outerRadius={70}
-                  paddingAngle={5}
-                  dataKey="count"
-                >
-                  {roomStats.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-             분석 요약
-          </h3>
-          <div className="bg-white rounded-2xl border border-slate-100 p-4 space-y-4 shadow-sm h-[180px] overflow-y-auto scrollbar-hide">
-             <div className="space-y-1.5">
-               <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">주요 예약자</span>
-               <div className="flex flex-wrap gap-1.5">
-                 {topOrganizers.map((o, idx) => (
-                   <span key={idx} className="px-2 py-1 bg-slate-50 text-[10px] font-bold text-slate-600 rounded-lg border border-slate-100 whitespace-nowrap">
-                     {o.name} <span className="text-black ml-1">{o.value}</span>
-                   </span>
-                 ))}
-               </div>
-             </div>
-             <div className="space-y-1.5">
-               <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">주요 프로젝트</span>
-               <div className="flex flex-wrap gap-1.5">
-                 {topProjects.length > 0 ? topProjects.map((p, idx) => (
-                   <span key={idx} className="px-2 py-1 bg-black text-white text-[10px] font-bold rounded-lg whitespace-nowrap shadow-sm">
-                     {p.name} <span className="opacity-60 ml-1">{p.value}</span>
-                   </span>
-                 )) : <span className="text-[10px] font-medium text-slate-400">데이터 없음</span>}
-               </div>
-             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -437,12 +178,11 @@ export default function SettingsModal({
   onUpdateRooms,
   onUpdateHolidays
 }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = React.useState<'rooms' | 'holidays' | 'stats'>('rooms');
+  const [activeTab, setActiveTab] = React.useState<'rooms' | 'holidays'>('rooms');
   const [isEditMode, setIsEditMode] = React.useState(false);
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
   const [passwordInput, setPasswordInput] = React.useState('');
   const [passwordError, setPasswordError] = React.useState(false);
-  const [backendStats, setBackendStats] = React.useState<any>(null);
   
   // Local state for immediate feedback
   const [localRooms, setLocalRooms] = React.useState<Room[]>(initialRooms);
@@ -450,29 +190,23 @@ export default function SettingsModal({
 
   const SETTINGS_PASSWORD = import.meta.env.VITE_SETTINGS_PASSWORD || '1234';
 
-  // Sync from props when modal opens
+  // Sync from props when modal opens or props change
   React.useEffect(() => {
-    if (isOpen) {
-      setLocalRooms(initialRooms);
-      setLocalHolidays(initialHolidays);
+    setLocalRooms(initialRooms);
+    setLocalHolidays(initialHolidays);
+  }, [initialRooms, initialHolidays]);
+
+  // Reset auth ONLY when the modal is newly opened
+  const lastIsOpen = React.useRef(false);
+  React.useEffect(() => {
+    if (isOpen && !lastIsOpen.current) {
       setIsAuthenticated(false);
       setPasswordInput('');
       setPasswordError(false);
-      fetchStats();
+      setIsEditMode(false);
     }
-  }, [isOpen, initialRooms, initialHolidays]);
-
-  const fetchStats = async () => {
-    try {
-      const res = await fetch("/api/stats");
-      if (res.ok) {
-        const data = await res.json();
-        setBackendStats(data);
-      }
-    } catch (e) {
-      console.warn("Failed to fetch stats", e);
-    }
-  };
+    lastIsOpen.current = isOpen;
+  }, [isOpen]);
 
   const handlePasswordSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -676,16 +410,6 @@ export default function SettingsModal({
                   
                   <div className="h-[1px] bg-slate-200 my-2 mx-2" />
 
-                  <button 
-                    onClick={() => setActiveTab('stats')}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
-                      activeTab === 'stats' ? 'bg-black text-white' : 'text-slate-600 hover:bg-black/5'
-                    }`}
-                  >
-                    <BarChart3 size={14} />
-                    통계
-                  </button>
-
                   <div className="mt-auto">
                       <button 
                       onClick={() => {
@@ -704,11 +428,10 @@ export default function SettingsModal({
                 <div className="flex-1 p-8 flex flex-col min-w-0 bg-[#FDFDFD]">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xl font-bold text-[#1A1A1A] tracking-tight">
-                      {activeTab === 'rooms' ? '회의실 관리' : activeTab === 'holidays' ? '공휴일 관리' : '시스템 통계'}
+                      {activeTab === 'rooms' ? '회의실 관리' : '공휴일 관리'}
                     </h2>
                     <div className="flex items-center gap-2">
-                      {activeTab !== 'stats' && (
-                        isEditMode ? (
+                      {isEditMode ? (
                           <>
                             <button 
                               onClick={activeTab === 'rooms' ? addRoom : addHoliday}
@@ -737,7 +460,7 @@ export default function SettingsModal({
                             <Pencil size={15} />
                           </button>
                         )
-                      )}
+                      }
                     </div>
                   </div>
 
@@ -763,7 +486,7 @@ export default function SettingsModal({
                           ))}
                         </SortableContext>
                       </DndContext>
-                    ) : activeTab === 'holidays' ? (
+                    ) : (
                       customHolidays.map(holiday => (
                         <div key={holiday.id} className="flex items-center gap-2 px-2 bg-white rounded-xl border border-slate-100 shadow-sm h-11 group">
                           <div className="w-5 shrink-0" />
@@ -807,8 +530,6 @@ export default function SettingsModal({
                           </div>
                         </div>
                       ))
-                    ) : (
-                      <StatisticsView bookings={bookings} rooms={localRooms} backendStats={backendStats} />
                     )}
                     {activeTab === 'holidays' && customHolidays.length === 0 && (
                       <div className="h-40 flex flex-col items-center justify-center text-slate-300">

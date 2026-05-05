@@ -9,6 +9,7 @@ import Sidebar from './components/Sidebar';
 import WeeklyView from './components/WeeklyView';
 import BookingModal from './components/BookingModal';
 import SettingsModal from './components/SettingsModal';
+import StatsModal from './components/StatsModal';
 import { Booking, Room, Holiday } from './types';
 import { BOOKING_COLORS } from './constants';
 import { getKoreanHolidays } from './lib/holidays';
@@ -20,13 +21,27 @@ export default function App() {
   const [holidays, setHolidays] = React.useState<Holiday[]>([]);
   const [bookings, setBookings] = React.useState<Booking[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [backendStats, setBackendStats] = React.useState<any>(null);
   
   // 데이터 초기 로딩
   React.useEffect(() => {
     fetchData();
+    fetchStats();
     // Log visit
     fetch("/api/visit", { method: "POST" }).catch(e => console.warn("Failed to log visit", e));
   }, []);
+
+  const fetchStats = async () => {
+    try {
+      const res = await fetch("/api/stats");
+      if (res.ok) {
+        const data = await res.json();
+        setBackendStats(data);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch stats", e);
+    }
+  };
 
   const fetchData = async (showLoading = true) => {
     if (showLoading) setIsLoading(true);
@@ -123,6 +138,7 @@ export default function App() {
 
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
+  const [isStatsModalOpen, setIsStatsModalOpen] = React.useState(false);
   const [editingBooking, setEditingBooking] = React.useState<Partial<Booking> | undefined>(undefined);
 
   useEffect(() => {
@@ -315,6 +331,7 @@ export default function App() {
             selectedDate={selectedDate} 
             onDateSelect={setSelectedDate} 
             onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenStats={() => setIsStatsModalOpen(true)}
             holidays={holidays}
             rooms={rooms}
             viewMode={viewMode}
@@ -359,6 +376,15 @@ export default function App() {
         holidays={holidays}
         onUpdateRooms={handleUpdateRooms}
         onUpdateHolidays={handleUpdateHolidays}
+      />
+
+      <StatsModal 
+        isOpen={isStatsModalOpen}
+        onClose={() => setIsStatsModalOpen(false)}
+        bookings={bookings}
+        rooms={rooms}
+        backendStats={backendStats}
+        onRefreshStats={fetchStats}
       />
     </div>
   );

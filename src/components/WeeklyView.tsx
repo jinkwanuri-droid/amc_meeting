@@ -271,40 +271,25 @@ export default function WeeklyView({
         // Strictly overlapping count for extreme density scenarios
         const overlappingCount = cluster.filter(b => b.startTime < booking.endTime && b.endTime > booking.startTime).length;
         
-        if (overlappingCount > 6) {
-          // [GRID MODE] - Extreme density fallback
-          const roomsCount = rooms.length || 4;
-          const widthPct = 100 / roomsCount;
-          const leftPct = roomIdx * widthPct;
-
-          layouts.set(booking.id, {
-            width: `calc(${widthPct}% - 4px)`,
-            left: `calc(${leftPct}% + 2px)`,
-            index: roomIdx,
-            groupSize: roomsCount
-          });
-        } else if (cluster.length === 1) {
+        if (cluster.length === 1) {
           // [FULL WIDTH] - No overlap at all
           layouts.set(booking.id, {
-            width: 'calc(100% - 24px)',
-            left: '12px',
+            width: 'calc(100% - 8px)',
+            left: '4px',
             index: roomIdx,
             groupSize: 1
           });
         } else {
-          // [SIDE-BY-SIDE DYNAMIC] - Conflicting items share the width without overlapping
-          const colWidth = 100 / roomsInClusterCount;
-          const leftPct = localRoomIdx * colWidth;
+          // [SIDE-BY-SIDE DYNAMIC]
+          const n = roomsInClusterCount;
+          const colWidth = 100 / n;
           
-          // Use small horizontal gaps (gutters) for better visual distinction
-          const gutter = 1; // 1% gutter
-          const widthPct = colWidth - (gutter * 2);
-
+          // Unified formula for G=4px gap/margin
           layouts.set(booking.id, {
-            width: `${widthPct}%`,
-            left: `${leftPct + gutter}%`,
+            width: `calc(${colWidth}% - ${ ( (n + 1) * 4 ) / n }px)`,
+            left: `calc(${localRoomIdx * colWidth}% - ${ (localRoomIdx * 4) / n }px + 4px)`,
             index: roomIdx,
-            groupSize: roomsInClusterCount
+            groupSize: n
           });
         }
       });
@@ -745,7 +730,7 @@ export default function WeeklyView({
                                       top: `${topOffset + 20}px`, 
                                       height: `${heightOffset - 2}px`, 
                                       zIndex: isDragging ? 200 : (10 + bookingLayout.index),
-                                      background: `linear-gradient(135deg, ${hexColor} 0%, color-mix(in srgb, ${hexColor}, white 20%) 100%)`,
+                                      background: `linear-gradient(135deg, color-mix(in srgb, ${hexColor}, white 15%) 0%, color-mix(in srgb, ${hexColor}, white 35%) 100%)`,
                                       transition: isDragging ? 'none' : undefined,
                                       paddingLeft: isMobile ? '1px' : undefined,
                                       paddingRight: isMobile ? '1px' : undefined,
@@ -811,7 +796,7 @@ export default function WeeklyView({
                                       }}
                                       className={cn("flex flex-col overflow-hidden h-full pointer-events-none origin-top-left")}
                                     >
-                                      {(!isMobile && (bookingLayout.groupSize <= 2 || hoveredCardId === booking.id)) || heightOffset >= 40 ? (
+                                      {(hoveredCardId === booking.id) || (bookingLayout.groupSize <= 2 && (heightOffset >= 40 || !isMobile)) ? (
                                         <div className="flex flex-col h-full px-1.5 py-1">
                                           <div className="flex-1 overflow-hidden">
                                             <motion.h4 
@@ -903,9 +888,11 @@ export default function WeeklyView({
                                         </div>
                                       ) : (
                                         <div className="flex flex-col h-full px-1 justify-center items-center overflow-hidden">
-                                          <span className="text-[10px] font-bold text-[#4E5057] truncate w-full text-center opacity-80">
-                                            {booking.title}
-                                          </span>
+                                          {bookingLayout.groupSize <= 2 && (
+                                            <span className="text-[10px] font-bold text-[#4E5057] truncate w-full text-center opacity-80">
+                                              {booking.title}
+                                            </span>
+                                          )}
                                         </div>
                                       )}
                                     </motion.div>

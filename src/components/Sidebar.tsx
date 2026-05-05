@@ -15,7 +15,7 @@ import {
   isWithinInterval
 } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Settings, MapPin, Presentation, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Settings, MapPin, Presentation, Plus, BarChart3 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Holiday, Room } from '../types';
 
@@ -23,13 +23,14 @@ interface SidebarProps {
   selectedDate: Date;
   onDateSelect: (date: Date) => void;
   onOpenSettings: () => void;
+  onOpenStats: () => void;
   holidays: Holiday[];
   rooms: Room[];
   viewMode: 'week' | 'day';
   onRoomBooking?: (roomId: string) => void;
 }
 
-export default function Sidebar({ selectedDate, onDateSelect, onOpenSettings, holidays, rooms, viewMode, onRoomBooking }: SidebarProps) {
+export default function Sidebar({ selectedDate, onDateSelect, onOpenSettings, onOpenStats, holidays, rooms, viewMode, onRoomBooking }: SidebarProps) {
   const [currentMonth, setCurrentMonth] = React.useState(startOfMonth(selectedDate));
   const [hoveredHoliday, setHoveredHoliday] = React.useState<{ date: Date; name: string } | null>(null);
 
@@ -57,17 +58,11 @@ export default function Sidebar({ selectedDate, onDateSelect, onOpenSettings, ho
     <aside className="w-72 bg-[#F9F9F9] border-r border-[#E5E5E5] h-full flex flex-col p-8 pt-[max(2rem,5vh)] overflow-y-auto shrink-0 transition-colors scrollbar-hide">
       <div className="flex items-center justify-between mb-10">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center shadow-lg shadow-black/10">
             <Presentation size={20} className="text-white" strokeWidth={2.5} />
           </div>
           <h1 className="font-bold text-lg tracking-tighter text-[#1A1A1A]">AMC RoomBook</h1>
         </div>
-        <button 
-          onClick={onOpenSettings}
-          className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-black hover:bg-black/5 rounded-full transition-all"
-        >
-          <Settings size={15} />
-        </button>
       </div>
 
       <div className="mb-12">
@@ -175,9 +170,28 @@ export default function Sidebar({ selectedDate, onDateSelect, onOpenSettings, ho
       </div>
 
       <div className="mt-auto">
-        <div className="mb-4">
-          <h3 className="text-[14px] font-bold text-[#1A1A1A] tracking-tight mb-1">회의실 예약</h3>
-          <p className="text-[11px] text-slate-400 font-medium">원하시는 회의실을 선택해 주세요</p>
+        <div className="h-[1px] bg-slate-200/60 mb-8 mx-1" />
+        <div className="mb-4 flex items-start justify-between">
+          <div className="min-w-0">
+            <h3 className="text-[15px] font-black text-[#1A1A1A] tracking-tight mb-0.5">회의실 예약</h3>
+            <p className="text-[11px] text-slate-400 font-medium whitespace-nowrap mt-0.5">원하시는 회의실을 선택해 주세요</p>
+          </div>
+          <div className="flex items-center gap-1 -mt-0.5">
+            <button 
+              onClick={onOpenStats}
+              className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-black hover:bg-black/5 rounded-lg transition-all"
+              title="통계"
+            >
+              <BarChart3 size={15} />
+            </button>
+            <button 
+              onClick={onOpenSettings}
+              className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-black hover:bg-black/5 rounded-lg transition-all"
+              title="설정"
+            >
+              <Settings size={15} />
+            </button>
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
           {Array.isArray(rooms) && rooms.map((room) => {
@@ -186,18 +200,22 @@ export default function Sidebar({ selectedDate, onDateSelect, onOpenSettings, ho
               <div 
                 key={room.id} 
                 onClick={() => onRoomBooking?.(room.id)}
-                className="flex flex-col justify-end p-2.5 bg-white rounded-xl border border-slate-100 shadow-sm transition-all hover:shadow-md hover:border-black/20 cursor-pointer group active:scale-[0.98] h-[72px] relative overflow-hidden"
+                className="p-2.5 bg-white rounded-xl border border-slate-100 shadow-sm transition-all hover:shadow-md hover:border-black/20 cursor-pointer group active:scale-[0.98] h-[68px] relative overflow-hidden"
               >
-                {/* Accent Tag */}
-                <div 
-                  className="absolute top-2.5 left-2.5 w-7 h-4 rounded-md pointer-events-none shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]"
-                  style={{ backgroundColor: hexColor }}
-                />
-                
-                <div className="flex items-center justify-end mb-1">
-                  <p className="text-[10px] text-slate-400 font-black whitespace-nowrap shrink-0">{room.capacity}인</p>
+                <div className="flex h-full gap-2.5">
+                  {/* 파란색: 테마색-라운드 사각형 */}
+                  <div 
+                    className="w-[22px] h-full rounded-lg shrink-0 opacity-40 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)]"
+                    style={{ backgroundColor: hexColor }}
+                  />
+                  
+                  <div className="flex-1 flex flex-col justify-between py-1 min-w-0 text-right">
+                    {/* 빨간색: 회의실명(우측정렬) */}
+                    <p className="text-[12px] font-black text-[#1A1A1A] truncate leading-tight uppercase tracking-tight">{room.name || '방 이름 없음'}</p>
+                    {/* 초록색: 수용인원(우측정렬) */}
+                    <p className="text-[10px] text-slate-400 font-black">{room.capacity}인</p>
+                  </div>
                 </div>
-                <p className="text-[15px] font-black text-[#1A1A1A] truncate leading-tight">{room.name || '방 이름 없음'}</p>
               </div>
             );
           })}

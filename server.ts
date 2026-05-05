@@ -53,6 +53,31 @@ async function startServer() {
 
       await sql`CREATE TABLE IF NOT EXISTS holidays (id TEXT PRIMARY KEY, name TEXT NOT NULL, date DATE NOT NULL);`;
       await sql`CREATE TABLE IF NOT EXISTS activity_log (id SERIAL PRIMARY KEY, action TEXT NOT NULL, timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP);`;
+      
+      // Color Migration: Update existing colors to new darker theme
+      const colorMap = {
+        'bg-[#D4F4F2]': 'bg-[#C7E7E5]',
+        'bg-[#DBE6D3]': 'bg-[#CED9C6]',
+        'bg-[#FFEBE7]': 'bg-[#F2DEDA]',
+        'bg-[#E5F1FF]': 'bg-[#D8E4F2]',
+        'bg-[#FCEDF7]': 'bg-[#EFE0EA]',
+        'bg-[#FFFFEA]': 'bg-[#F2F2DD]',
+        'bg-[#EAF5F0]': 'bg-[#DDE8E3]',
+        'bg-[#FFF5EA]': 'bg-[#F2E8DD]',
+        '#D4F4F2': '#C7E7E5',
+        '#DBE6D3': '#CED9C6',
+        '#FFEBE7': '#F2DEDA',
+        '#E5F1FF': '#D8E4F2',
+        '#FCEDF7': '#EFE0EA',
+        '#FFFFEA': '#F2F2DD',
+        '#EAF5F0': '#DDE8E3',
+        '#FFF5EA': '#F2E8DD'
+      };
+      
+      for (const [oldColor, newColor] of Object.entries(colorMap)) {
+        await sql`UPDATE rooms SET color = ${newColor} WHERE color = ${oldColor}`;
+      }
+
       console.log("✅ DB Initialization successful");
     } catch (e: any) {
       console.error("❌ DB Initialization failed:", e.message);
